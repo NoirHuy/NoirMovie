@@ -135,10 +135,60 @@
     font-family: var(--font-sans);
     overflow-x: hidden;
     margin: 0;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-headline);
     color: #ffffff;
   }
+}
+
+/* ====================== */
+/*   LIGHT MODE OVERRIDES  */
+/* ====================== */
+:root.light-mode {
+  --color-background: #f0f0f5;
+  --color-surface: #ffffff;
+  --color-surface-dim: #e8e8ef;
+  --color-surface-container: #e8e8ef;
+  --color-surface-container-low: #ededf2;
+  --color-surface-container-high: #dedee6;
+  --color-surface-container-highest: #d4d4de;
+  --color-surface-container-lowest: #f5f5fa;
+  --color-on-surface: #1a1a2e;
+  --color-on-surface-variant: #5c4a4a;
+  --color-secondary: #7c7a84;
+}
+
+:root.light-mode body {
+  background-color: #f0f0f5;
+  color: #1a1a2e;
+}
+
+:root.light-mode h1,
+:root.light-mode h2,
+:root.light-mode h3,
+:root.light-mode h4,
+:root.light-mode h5,
+:root.light-mode h6 {
+  color: #1a1a2e;
+}
+
+/* Light mode header */
+:root.light-mode header {
+  background: rgba(240, 240, 245, 0.85) !important;
+  border-bottom-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Light mode glass panel */
+:root.light-mode .glass-panel-light {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* Smooth theme transition for all elements */
+:root, :root * {
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease;
 }

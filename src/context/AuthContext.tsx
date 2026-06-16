@@ -30,6 +30,16 @@ export interface HistoryItem {
   duration?: number;
 }
 
+export interface WatchlistItem {
+  _id?: string;
+  slug: string;
+  name: string;
+  thumb_url: string;
+  year?: number;
+  origin_name?: string;
+  addedAt?: string;
+}
+
 interface AuthContextType {
   user: User | null;
   login: (username: string, password: string) => Promise<void>;
@@ -43,6 +53,10 @@ interface AuthContextType {
   addToHistory: (movie: any, episodeSlug?: string, currentTime?: number, duration?: number) => Promise<void>;
   updateWatchProgress: (movieSlug: string, episodeSlug: string, currentTime: number, duration?: number) => Promise<void>;
   clearHistory: () => Promise<void>;
+  watchlist: WatchlistItem[];
+  addToWatchlist: (movie: { slug: string; name: string; thumb_url: string; year?: number; origin_name?: string }) => Promise<void>;
+  removeFromWatchlist: (slug: string) => Promise<void>;
+  isInWatchlist: (slug: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -50,6 +64,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [watchHistory, setWatchHistory] = useState<HistoryItem[]>([]);
+  const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
 
   // Load from local storage and backend on mount
   useEffect(() => {
@@ -110,6 +125,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setWatchHistory(JSON.parse(savedHistory));
           }
         });
+
+      // Load watchlist from backend MongoDB
+      fetch('/api/watchlist', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+        .then(res => res.ok ? res.json() : Promise.reject('failed'))
+        .then(data => setWatchlist(data))
+        .catch(() => {});
     }
   }, []);
 
@@ -154,6 +177,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     } catch (err) {
       console.error('Error loading history on login:', err);
+    }
+
+    // Sync watchlist from backend
+    try {
+      const wlResponse = await fetch('/api/watchlist', {
+        headers: { 'Authorization': `Bearer ${data.token}` }
+      });
+      if (wlResponse.ok) {
+        const wlData = await wlResponse.json();
+        setWatchlist(wlData);
+      }
+    } catch (err) {
+      console.error('Error loading watchlist on login:', err);
     }
   };
 
@@ -491,8 +527,48 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const addToWatchlist = async (movie: { slug: string; name: string; thumb_url: string; year?: number; origin_name?: string }) => {
+    const token = localStorage.getItem('noirmovie_token');
+    if (!token) return;
+    // Optimistic update
+    setWatchlist(prev => {
+      if (prev.some(i => i.slug === movie.slug)) return prev;
+      return [{ ...movie, addedAt: new Date().toISOString() }, ...prev];
+    });
+    try {
+      const res = await fetch('/api/watchlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(movie)
+      });
+      if (res.ok) setWatchlist(await res.json());
+    } catch (err) {
+      console.error('Error adding to watchlist:', err);
+    }
+  };
+
+  const removeFromWatchlist = async (slug: string) => {
+    const token = localStorage.getItem('noirmovie_token');
+    if (!token) return;
+    // Optimistic update
+    setWatchlist(prev => prev.filter(i => i.slug !== slug));
+    try {
+      const res = await fetch(`/api/watchlist/${slug}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) setWatchlist(await res.json());
+    } catch (err) {
+      console.error('Error removing from watchlist:', err);
+    }
+  };
+
+  const isInWatchlist = (slug: string): boolean => {
+    return watchlist.some(i => i.slug === slug);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, register, loginWithGoogle, loginWithFacebook, logout, updateProfile, subscribePlan, watchHistory, addToHistory, updateWatchProgress, clearHistory }}>
+    <AuthContext.Provider value={{ user, login, register, loginWithGoogle, loginWithFacebook, logout, updateProfile, subscribePlan, watchHistory, addToHistory, updateWatchProgress, clearHistory, watchlist, addToWatchlist, removeFromWatchlist, isInWatchlist }}>
       {children}
     </AuthContext.Provider>
   );

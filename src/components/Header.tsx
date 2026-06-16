@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, ChevronDown, LogOut, History, User, Menu, X, Globe, Library, Crown } from 'lucide-react';
+import { Search, ChevronDown, LogOut, History, User, Menu, X, Globe, Library, Crown, Bookmark, Sun, Moon } from 'lucide-react';
 import { apiService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { AuthModal } from './AuthModal';
 
 export const Header: React.FC = () => {
@@ -19,7 +20,9 @@ export const Header: React.FC = () => {
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-    const { user, logout } = useAuth();
+    const { user, logout, watchlist } = useAuth();
+    const { theme, toggleTheme } = useTheme();
+    const watchlistCount = watchlist.length;
 
     // Event listener for opening auth modal from other pages (e.g. ProfilePage)
     useEffect(() => {
@@ -179,7 +182,7 @@ export const Header: React.FC = () => {
                     </div>
 
                     {/* Right: Search Box, User Auth, Hamburger */}
-                    <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-3">
                         {/* Search bar with Autocomplete (hidden on mobile, drawer has its own) */}
                         <form onSubmit={handleSearch} className="search-box-container relative hidden md:flex items-center bg-surface-container rounded-full px-4 py-1.5 border border-white/10 group focus-within:border-primary transition-colors">
                             <input
@@ -241,6 +244,31 @@ export const Header: React.FC = () => {
                             )}
                         </form>
 
+                        {/* Theme Toggle Button */}
+                        <button
+                            onClick={toggleTheme}
+                            title={theme === 'dark' ? 'Chuyển sang chế độ sáng' : 'Chuyển sang chế độ tối'}
+                            className="hidden md:flex w-9 h-9 rounded-full items-center justify-center bg-surface-container border border-white/10 hover:border-primary/30 hover:text-primary text-on-surface-variant transition-all cursor-pointer"
+                        >
+                            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+                        </button>
+
+                        {/* Watchlist Button (logged-in users only) */}
+                        {user && (
+                            <Link
+                                to="/danh-sach-yeu-thich"
+                                title="Danh sách yêu thích"
+                                className="hidden md:flex relative w-9 h-9 rounded-full items-center justify-center bg-surface-container border border-white/10 hover:border-primary/30 hover:text-primary text-on-surface-variant transition-all"
+                            >
+                                <Bookmark size={16} />
+                                {watchlistCount > 0 && (
+                                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary rounded-full text-white text-[9px] font-bold flex items-center justify-center">
+                                        {watchlistCount > 9 ? '9+' : watchlistCount}
+                                    </span>
+                                )}
+                            </Link>
+                        )}
+
                         {/* User action (responsive, click toggle for mobile compatibility) */}
                         {user ? (
                             <div className="relative profile-menu-container">
@@ -300,6 +328,16 @@ export const Header: React.FC = () => {
                                             className="flex items-center gap-2 text-sm py-2 px-3 rounded-lg text-on-surface-variant hover:bg-primary/10 hover:text-primary transition-all"
                                         >
                                             <History size={16} /> Lịch sử xem
+                                        </Link>
+                                        <Link 
+                                            to="/danh-sach-yeu-thich" 
+                                            onClick={() => setIsProfileOpen(false)}
+                                            className="flex items-center gap-2 text-sm py-2 px-3 rounded-lg text-on-surface-variant hover:bg-primary/10 hover:text-primary transition-all"
+                                        >
+                                            <Bookmark size={16} /> Danh sách yêu thích
+                                            {watchlistCount > 0 && (
+                                                <span className="ml-auto px-1.5 py-0.5 bg-primary/20 text-primary text-[9px] font-bold rounded-full">{watchlistCount}</span>
+                                            )}
                                         </Link>
                                         <button 
                                             onClick={handleLogout} 
@@ -361,13 +399,26 @@ export const Header: React.FC = () => {
                         </Link>
 
                         {user ? (
-                            <Link 
-                                to="/lich-su" 
-                                className="text-base font-bold text-on-surface hover:text-primary transition-colors flex items-center gap-3 border-b border-white/5 pb-3"
-                                onClick={() => setIsMobileMenuOpen(false)}
-                            >
-                                Lịch sử xem phim
-                            </Link>
+                            <>
+                                <Link 
+                                    to="/lich-su" 
+                                    className="text-base font-bold text-on-surface hover:text-primary transition-colors flex items-center gap-3 border-b border-white/5 pb-3"
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                >
+                                    Lịch sử xem phim
+                                </Link>
+                                <Link 
+                                    to="/danh-sach-yeu-thich" 
+                                    className="text-base font-bold text-on-surface hover:text-primary transition-colors flex items-center gap-3 border-b border-white/5 pb-3"
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                >
+                                    <Bookmark size={18} className="text-primary" />
+                                    Danh sách yêu thích
+                                    {watchlistCount > 0 && (
+                                        <span className="ml-auto px-2 py-0.5 bg-primary/20 text-primary text-xs font-bold rounded-full">{watchlistCount}</span>
+                                    )}
+                                </Link>
+                            </>
                         ) : (
                             <button 
                                 onClick={() => {

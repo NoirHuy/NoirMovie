@@ -139,7 +139,15 @@ const UserSchema = new mongoose.Schema({
     status: { type: String, enum: ['active', 'inactive'], default: 'inactive' },
     expiresAt: { type: Date }
   },
-  watchHistory: [HistoryItemSchema]
+  watchHistory: [HistoryItemSchema],
+  watchlist: [{
+    slug: { type: String, required: true },
+    name: { type: String, required: true },
+    thumb_url: { type: String },
+    year: { type: Number },
+    origin_name: { type: String },
+    addedAt: { type: Date, default: Date.now }
+  }]
 });
 
 const User = mongoose.model('User', UserSchema);
@@ -735,6 +743,57 @@ app.delete('/api/history', authenticateToken, async (req, res) => {
     res.json([]);
   } catch (error) {
     res.status(500).json({ error: 'Lỗi khi xóa lịch sử xem phim: ' + error.message });
+  }
+});
+
+// --- WATCHLIST ENDPOINTS ---
+
+// Get watchlist
+app.get('/api/watchlist', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ error: 'Không tìm thấy người dùng.' });
+    const sortedList = (user.watchlist || []).sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt));
+    res.json(sortedList);
+  } catch (error) {
+    res.status(500).json({ error: 'Lỗi khi lấy danh sách yêu thích: ' + error.message });
+  }
+});
+
+// Add movie to watchlist
+app.post('/api/watchlist', authenticateToken, async (req, res) => {
+  try {
+    const { slug, name, thumb_url, year, origin_name } = req.body;
+    if (!slug || !name) return res.status(400).json({ error: 'Thiếu thông tin phim.' });
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ error: 'Không tìm thấy người dùng.' });
+
+    const alreadyExists = (user.watchlist || []).some(item => item.slug === slug);
+    if (alreadyExists) return res.json(user.watchlist.sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt)));
+
+    if (!user.watchlist) user.watchlist = [];
+    user.watchlist.push({ slug, name, thumb_url, year, origin_name, addedAt: new Date() });
+
+    await user.save();
+    res.json(user.watchlist.sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt)));
+  } catch (error) {
+    res.status(500).json({ error: 'Lỗi khi thêm vào danh sách: ' + error.message });
+  }
+});
+
+// Remove movie from watchlist
+app.delete('/api/watchlist/:slug', authenticateToken, async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ error: 'Không tìm thấy người dùng.' });
+
+    user.watchlist = (user.watchlist || []).filter(item => item.slug !== slug);
+    await user.save();
+    res.json(user.watchlist.sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt)));
+  } catch (error) {
+    res.status(500).json({ error: 'Lỗi khi xóa khỏi danh sách: ' + error.message });
   }
 });
 
