@@ -490,7 +490,7 @@ export const MovieDetail: React.FC = () => {
             alert('Chức năng Tạo phòng xem chung chỉ dành riêng cho gói thành viên VIP!');
             return;
         }
-        const roomCode = `CINE-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+        const roomCode = `NOIR-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
         setSearchParams({ roomId: roomCode });
         // Automatically start playing first episode if not already playing
         if (!currentEpisode && episodes.length > 0) {
@@ -598,7 +598,7 @@ export const MovieDetail: React.FC = () => {
         const isVip = required === 'VIP';
         const title = isVip ? 'Đặc Quyền Thành Viên VIP' : 'Yêu Cầu Nâng Cấp Gói Cước';
         const description = isVip 
-            ? 'Bộ phim bom tấn chất lượng 4K này chỉ dành riêng cho các thành viên VIP của Cineos.' 
+            ? 'Bộ phim bom tấn chất lượng 4K này chỉ dành riêng cho các thành viên VIP của NoirMovie.' 
             : 'Để xem bộ phim chiếu rạp hấp dẫn này, vui lòng nâng cấp lên tài khoản Standard hoặc VIP.';
         
         return (

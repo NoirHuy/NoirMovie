@@ -164,7 +164,7 @@ export const PremiumPage: React.FC = () => {
 
   const getTransferContent = () => {
     if (!user || !selectedPlan) return '';
-    return `CINEOS ${selectedPlan.id.toUpperCase()} ${user.username.toUpperCase()}`;
+    return `NOIRMOVIE ${selectedPlan.id.toUpperCase()} ${user.username.toUpperCase()}`;
   };
 
   // Simulated VietQR Image URL
@@ -172,7 +172,7 @@ export const PremiumPage: React.FC = () => {
     if (!selectedPlan) return '';
     const content = encodeURIComponent(getTransferContent());
     // Using VietQR compact template with MB Bank account
-    return `https://img.vietqr.io/image/mbbank-8888866669999-compact2.png?amount=${selectedPlan.priceNumber}&addInfo=${content}&accountName=CONG%20TY%20CINEOS%20VIETNAM`;
+    return `https://img.vietqr.io/image/mbbank-8888866669999-compact2.png?amount=${selectedPlan.priceNumber}&addInfo=${content}&accountName=CONG%20TY%20NOIR%20MOVIE%20VIETNAM`;
   };
 
   return (
@@ -194,7 +194,7 @@ export const PremiumPage: React.FC = () => {
           </button>
           
           <h1 className="font-headline text-4xl md:text-6xl font-black mb-4 tracking-tight leading-none">
-            Nâng Cấp Trải Nghiệm <span className="bg-gradient-to-r from-primary via-rose-500 to-amber-500 bg-clip-text text-transparent">Cineos Premium</span>
+            Nâng Cấp Trải Nghiệm <span className="bg-gradient-to-r from-primary via-rose-500 to-amber-500 bg-clip-text text-transparent">NoirMovie Premium</span>
           </h1>
           <p className="text-sm md:text-base text-zinc-400">
             Chọn gói cước phù hợp nhất với phong cách xem phim của bạn. Mở khóa thế giới điện ảnh đỉnh cao chất lượng 4K không giới hạn.
@@ -365,7 +365,7 @@ export const PremiumPage: React.FC = () => {
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-zinc-500">Tên chủ tài khoản:</span>
                     <span className="text-white font-semibold">
-                      CONG TY CINEOS VIETNAM
+                      CONG TY NOIR MOVIE VIETNAM
                     </span>
                   </div>
                   <div className="flex justify-between items-center text-xs">
