@@ -26,6 +26,7 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<void>;
   loginWithGoogle: (credential: string) => Promise<void>;
+  loginWithFacebook: (accessToken: string) => Promise<void>;
   logout: () => void;
   watchHistory: HistoryItem[];
   addToHistory: (movie: any, episodeSlug?: string, currentTime?: number, duration?: number) => Promise<void>;
@@ -179,6 +180,47 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     } catch (err) {
       console.error('Error loading history on Google login:', err);
+    }
+  };
+
+  const loginWithFacebook = async (accessToken: string) => {
+    const response = await fetch('/api/auth/facebook', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ accessToken })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Đăng nhập Facebook thất bại.');
+    }
+
+    const newUser = { 
+      username: data.user.username,
+      email: data.user.email,
+      avatar: data.user.avatar,
+      name: data.user.name
+    };
+    setUser(newUser);
+    localStorage.setItem('noirmovie_user', JSON.stringify(newUser));
+    localStorage.setItem('noirmovie_token', data.token);
+
+    // Sync history from backend
+    try {
+      const historyResponse = await fetch('/api/history', {
+        headers: {
+          'Authorization': `Bearer ${data.token}`
+        }
+      });
+      if (historyResponse.ok) {
+        const historyData = await historyResponse.json();
+        setWatchHistory(historyData);
+        localStorage.setItem(`history_${data.user.username}`, JSON.stringify(historyData));
+      }
+    } catch (err) {
+      console.error('Error loading history on Facebook login:', err);
     }
   };
 
@@ -336,7 +378,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, loginWithGoogle, logout, watchHistory, addToHistory, updateWatchProgress, clearHistory }}>
+    <AuthContext.Provider value={{ user, login, register, loginWithGoogle, loginWithFacebook, logout, watchHistory, addToHistory, updateWatchProgress, clearHistory }}>
       {children}
     </AuthContext.Provider>
   );

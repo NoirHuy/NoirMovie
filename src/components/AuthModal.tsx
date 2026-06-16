@@ -16,7 +16,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [googleClientId, setGoogleClientId] = useState<string>('');
-  const { login, register, loginWithGoogle } = useAuth();
+  const [facebookAppId, setFacebookAppId] = useState<string>('');
+  const { login, register, loginWithGoogle, loginWithFacebook } = useAuth();
 
   const handleGoogleCredentialResponse = async (response: any) => {
     setError(null);
@@ -41,13 +42,59 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           if (data.clientId) {
             setGoogleClientId(data.clientId);
           }
+          if (data.facebookAppId) {
+            setFacebookAppId(data.facebookAppId);
+          }
         }
       } catch (err) {
-        console.error('Failed to fetch Google Client ID from backend:', err);
+        console.error('Failed to fetch auth configs from backend:', err);
       }
     };
     fetchConfig();
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !facebookAppId) return;
+
+    const initializeFacebookSDK = () => {
+      const FB = (window as any).FB;
+      if (FB) {
+        try {
+          FB.init({
+            appId      : facebookAppId,
+            cookie     : true,
+            xfbml      : true,
+            version    : 'v18.0'
+          });
+        } catch (e) {
+          console.error('Error initializing Facebook SDK:', e);
+        }
+      } else {
+        // Load SDK script dynamically
+        (window as any).fbAsyncInit = function() {
+          (window as any).FB.init({
+            appId      : facebookAppId,
+            cookie     : true,
+            xfbml      : true,
+            version    : 'v18.0'
+          });
+        };
+
+        const id = 'facebook-jssdk';
+        if (!document.getElementById(id)) {
+          const fjs = document.getElementsByTagName('script')[0];
+          const js = document.createElement('script') as HTMLScriptElement;
+          js.id = id;
+          js.src = "https://connect.facebook.net/vi_VN/sdk.js";
+          js.async = true;
+          js.defer = true;
+          fjs.parentNode?.insertBefore(js, fjs);
+        }
+      }
+    };
+
+    initializeFacebookSDK();
+  }, [isOpen, facebookAppId]);
 
   useEffect(() => {
     if (!isOpen || !googleClientId) return;
@@ -142,6 +189,34 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleFacebookLogin = () => {
+    setError(null);
+    const FB = (window as any).FB;
+    if (!FB) {
+      setError('Hệ thống Đăng nhập Facebook đang khởi tạo, vui lòng thử lại sau.');
+      return;
+    }
+    setLoading(true);
+    FB.login((response: any) => {
+      if (response.authResponse) {
+        const accessToken = response.authResponse.accessToken;
+        loginWithFacebook(accessToken)
+          .then(() => {
+            onClose();
+          })
+          .catch((err: any) => {
+            setError(err.message || 'Đăng nhập Facebook thất bại.');
+          })
+          .finally(() => {
+            setLoading(false);
+          });
+      } else {
+        setLoading(false);
+        setError('Đăng nhập Facebook bị hủy hoặc thất bại.');
+      }
+    }, { scope: 'public_profile,email' });
   };
 
   const handleSwitchMode = (registerMode: boolean) => {
@@ -357,12 +432,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             
             <button 
               type="button"
-              className="w-full flex items-center justify-center gap-3 bg-white/5 border border-white/10 py-3.5 rounded-lg hover:bg-white/10 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+              onClick={handleFacebookLogin}
+              className="w-full flex items-center justify-center gap-3 bg-[#1877f2] border border-[#1877f2]/20 py-3.5 rounded-lg hover:bg-[#1877f2]/90 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
             >
               <svg className="w-5 h-5 fill-current text-white" viewBox="0 0 24 24">
-                <path d="M17.05 20.28c-.96.95-2.21 1.72-3.72 1.72-1.54 0-2.39-.92-4.01-.92-1.65 0-2.61.91-4.01.91-1.45 0-2.87-.86-4.05-2.22-2.41-2.76-2.41-7.23 0-9.98 1.18-1.35 2.6-2.21 4.05-2.21 1.41 0 2.36.91 4.01.91 1.62 0 2.48-.91 4.01-.91 1.25 0 2.49.65 3.39 1.58-2.83 1.43-2.38 5.63.43 7.02-.63 1.58-1.57 3.12-2.1 4.1zM12.03 7.25c-.02-2.23 1.83-4.09 4.01-4.13.04 2.23-1.83 4.11-4.01 4.13z"></path>
+                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"></path>
               </svg>
-              <span className="text-xs font-semibold text-on-surface">Đăng nhập với Apple (Bản dùng thử)</span>
+              <span className="text-xs font-semibold text-white">Đăng nhập với Facebook</span>
             </button>
           </div>
 

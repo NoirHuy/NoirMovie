@@ -44,12 +44,14 @@ const UserSchema = new mongoose.Schema({
   name: { type: String }, // User's full name / Google display name
   password: { type: String }, // Optional for Google OAuth users
   googleId: { type: String, unique: true, sparse: true }, // Sparse unique index allows null for normal users
+  facebookId: { type: String, unique: true, sparse: true },
   avatar: { type: String },
   givenName: { type: String },
   familyName: { type: String },
   emailVerified: { type: Boolean },
   locale: { type: String },
   googlePayload: { type: mongoose.Schema.Types.Mixed }, // Store the raw Google profile payload
+  facebookPayload: { type: mongoose.Schema.Types.Mixed }, // Store the raw Facebook profile payload
   watchHistory: [HistoryItemSchema]
 });
 
@@ -168,9 +170,12 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// Get public configuration (Google Client ID)
+// Get public configuration (Google Client ID & Facebook App ID)
 app.get('/api/config/google', (req, res) => {
-  res.json({ clientId: process.env.GOOGLE_CLIENT_ID || '' });
+  res.json({ 
+    clientId: process.env.GOOGLE_CLIENT_ID || '',
+    facebookAppId: process.env.FACEBOOK_APP_ID || ''
+  });
 });
 
 // Google OAuth2 Login / Register
@@ -309,6 +314,143 @@ app.post('/api/auth/google', async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: 'Lỗi máy chủ khi đăng nhập Google: ' + error.message });
+  }
+});
+
+// Facebook OAuth2 Login / Register
+app.post('/api/auth/facebook', async (req, res) => {
+  try {
+    const { accessToken } = req.body;
+    if (!accessToken) {
+      return res.status(400).json({ error: 'Không tìm thấy mã xác thực Facebook (accessToken).' });
+    }
+
+    // Verify token with Facebook Graph API
+    const fbVerifyUrl = `https://graph.facebook.com/me?fields=id,name,email,picture.type(large),first_name,last_name,locale&access_token=${accessToken}`;
+    const verifyResponse = await fetch(fbVerifyUrl);
+    
+    if (!verifyResponse.ok) {
+      const errData = await verifyResponse.json();
+      return res.status(400).json({ error: 'Mã xác thực Facebook không hợp lệ hoặc đã hết hạn: ' + (errData.error?.message || '') });
+    }
+
+    const payload = await verifyResponse.json();
+    const { 
+      id: facebookId, 
+      email, 
+      name, 
+      picture,
+      first_name: givenName,
+      last_name: familyName,
+      locale
+    } = payload;
+
+    const avatarUrl = picture?.data?.url || '';
+
+    // 1. Check if user already linked with this facebookId
+    let user = await User.findOne({ facebookId });
+
+    if (!user) {
+      // 2. Check if user already registered with this email (if email is provided by FB)
+      if (email) {
+        user = await User.findOne({ email: email.toLowerCase().trim() });
+      }
+      
+      if (user) {
+        // Link Facebook account to existing user
+        user.facebookId = facebookId;
+        if (!user.avatar) {
+          user.avatar = avatarUrl;
+        }
+        if (!user.name) {
+          user.name = name;
+        }
+        if (!user.givenName) user.givenName = givenName;
+        if (!user.familyName) user.familyName = familyName;
+        if (!user.locale) user.locale = locale;
+        user.facebookPayload = payload;
+        await user.save();
+      } else {
+        // 3. Create a new user if not exists
+        let baseUsername = '';
+        if (email) {
+          baseUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
+        } else {
+          // If Facebook didn't return an email (e.g. registered with phone number)
+          baseUsername = `fb_${facebookId.slice(-6)}`;
+        }
+        if (!baseUsername) baseUsername = 'user';
+
+        // Check if username is unique, append numbers if not
+        let finalUsername = baseUsername;
+        let suffix = 1;
+        while (await User.findOne({ username: finalUsername })) {
+          finalUsername = `${baseUsername}${suffix}`;
+          suffix += 1;
+        }
+
+        user = new User({
+          username: finalUsername,
+          email: email ? email.toLowerCase().trim() : undefined,
+          name,
+          facebookId,
+          avatar: avatarUrl,
+          givenName,
+          familyName,
+          locale,
+          facebookPayload: payload,
+          watchHistory: []
+        });
+
+        await user.save();
+      }
+    } else {
+      // Update details if they changed on Facebook
+      let updated = false;
+      if (avatarUrl && user.avatar !== avatarUrl) {
+        user.avatar = avatarUrl;
+        updated = true;
+      }
+      if (user.name !== name) {
+        user.name = name;
+        updated = true;
+      }
+      if (user.givenName !== givenName) {
+        user.givenName = givenName;
+        updated = true;
+      }
+      if (user.familyName !== familyName) {
+        user.familyName = familyName;
+        updated = true;
+      }
+      if (locale && user.locale !== locale) {
+        user.locale = locale;
+        updated = true;
+      }
+      
+      // Always store/update the raw payload
+      user.facebookPayload = payload;
+      updated = true;
+
+      if (updated) {
+        await user.save();
+      }
+    }
+
+    // Create app token
+    const token = jwt.sign({ id: user._id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
+
+    res.json({
+      token,
+      user: {
+        username: user.username,
+        email: user.email,
+        avatar: user.avatar,
+        name: user.name
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Lỗi máy chủ khi đăng nhập Facebook: ' + error.message });
   }
 });
 
