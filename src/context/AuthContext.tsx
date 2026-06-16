@@ -20,7 +20,7 @@ export interface HistoryItem {
 interface AuthContextType {
   user: User | null;
   login: (username: string, password: string) => Promise<void>;
-  register: (username: string, password: string) => Promise<void>;
+  register: (username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   watchHistory: HistoryItem[];
   addToHistory: (movie: any, episodeSlug?: string, currentTime?: number) => Promise<void>;
@@ -104,13 +104,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const register = async (username: string, password: string) => {
+  const register = async (username: string, email: string, password: string) => {
     const response = await fetch('/api/auth/register', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ username, password })
+      body: JSON.stringify({ username, email, password })
     });
 
     const data = await response.json();

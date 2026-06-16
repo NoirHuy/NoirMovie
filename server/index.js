@@ -39,6 +39,7 @@ const HistoryItemSchema = new mongoose.Schema({
 
 const UserSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true, lowercase: true, trim: true },
+  email: { type: String, lowercase: true, trim: true },
   password: { type: String, required: true },
   watchHistory: [HistoryItemSchema]
 });
@@ -68,7 +69,7 @@ const authenticateToken = (req, res, next) => {
 // Register
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, email, password } = req.body;
     if (!username || !password) {
       return res.status(400).json({ error: 'Vui lòng điền đầy đủ tên đăng nhập và mật khẩu.' });
     }
@@ -95,6 +96,7 @@ app.post('/api/auth/register', async (req, res) => {
     // Create user
     const newUser = new User({
       username: normalizedUsername,
+      email: email ? email.toLowerCase().trim() : undefined,
       password: hashedPassword,
       watchHistory: []
     });
