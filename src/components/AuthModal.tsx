@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Loader, Mail, Lock, User, ArrowRight } from 'lucide-react';
+import { X, Loader, Mail, Lock, User, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 interface AuthModalProps {
@@ -17,6 +17,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [googleClientId, setGoogleClientId] = useState<string>('');
   const [facebookAppId, setFacebookAppId] = useState<string>('');
+  const [showPassword, setShowPassword] = useState(false);
   const { login, register, loginWithGoogle, loginWithFacebook } = useAuth();
 
   const handleGoogleCredentialResponse = async (response: any) => {
@@ -264,8 +265,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
           {/* Branding */}
           <div className="flex flex-col items-center mb-10">
-            <span className="font-headline text-3xl font-extrabold text-primary tracking-tighter mb-2">NoirMovie</span>
-            <p className="text-xs text-on-surface-variant uppercase tracking-widest font-semibold">Enter the Frame</p>
+            <span className="font-headline text-3xl font-extrabold text-primary tracking-tighter">NoirMovie</span>
           </div>
 
           {/* Tab Switcher (Minimal) */}
@@ -360,7 +360,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 </label>
                 {!isRegister && (
                   <a href="#" className="text-xs text-primary hover:underline font-semibold">
-                    Quên?
+                    Quên mật khẩu?
                   </a>
                 )}
               </div>
@@ -369,7 +369,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                   <Lock size={18} />
                 </span>
                 <input 
-                  className="w-full bg-surface-container/50 border border-white/10 rounded-lg py-4 pl-12 pr-4 text-sm text-on-surface focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/40" 
+                  className="w-full bg-surface-container/50 border border-white/10 rounded-lg py-4 pl-12 pr-12 text-sm text-on-surface focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/40" 
                   id="password" 
                   placeholder="••••••••" 
                   value={password}
@@ -377,8 +377,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                   required 
                   minLength={6}
                   disabled={loading}
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-white transition-colors cursor-pointer"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </div>
 
@@ -393,7 +401,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                     <Lock size={18} />
                   </span>
                   <input 
-                    className="w-full bg-surface-container/50 border border-white/10 rounded-lg py-4 pl-12 pr-4 text-sm text-on-surface focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/40" 
+                    className="w-full bg-surface-container/50 border border-white/10 rounded-lg py-4 pl-12 pr-12 text-sm text-on-surface focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-on-surface-variant/40" 
                     id="confirmPassword" 
                     placeholder="••••••••" 
                     value={confirmPassword}
@@ -401,8 +409,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                     required 
                     minLength={6}
                     disabled={loading}
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-white transition-colors cursor-pointer"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
               </div>
             )}
