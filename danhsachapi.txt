@@ -1,0 +1,98 @@
+const url = 'https://ophim1.com/v1/api/danh-sach/[slug]';
+const options = {method: 'GET', headers: {accept: 'application/json'}};
+
+fetch(url, options)
+  .then(res => res.json())
+  .then(json => console.log(json))
+  .catch(err => console.error(err));
+
+  const url = 'https://ophim1.com/v1/api/tim-kiem?keyword=[keyword]';
+const options = {method: 'GET', headers: {accept: 'application/json'}};
+
+fetch(url, options)
+  .then(res => res.json())
+  .then(json => console.log(json))
+  .catch(err => console.error(err));
+
+  const url = 'https://ophim1.com/v1/api/the-loai';
+const options = {method: 'GET', headers: {accept: 'application/json'}};
+
+fetch(url, options)
+  .then(res => res.json())
+  .then(json => console.log(json))
+  .catch(err => console.error(err));
+
+  const url = 'https://ophim1.com/v1/api/the-loai/[slug]';
+const options = {method: 'GET', headers: {accept: 'application/json'}};
+
+fetch(url, options)
+  .then(res => res.json())
+  .then(json => console.log(json))
+  .catch(err => console.error(err));
+
+  const url = 'https://ophim1.com/v1/api/quoc-gia';
+const options = {method: 'GET', headers: {accept: 'application/json'}};
+
+fetch(url, options)
+  .then(res => res.json())
+  .then(json => console.log(json))
+  .catch(err => console.error(err));
+
+  const url = 'https://ophim1.com/v1/api/quoc-gia/[slug]';
+const options = {method: 'GET', headers: {accept: 'application/json'}};
+
+fetch(url, options)
+  .then(res => res.json())
+  .then(json => console.log(json))
+  .catch(err => console.error(err));
+
+  const url = 'https://ophim1.com/v1/api/nam-phat-hanh';
+const options = {method: 'GET', headers: {accept: 'application/json'}};
+
+fetch(url, options)
+  .then(res => res.json())
+  .then(json => console.log(json))
+  .catch(err => console.error(err));
+
+
+  const url = 'https://ophim1.com/v1/api/nam-phat-hanh/[year]';
+const options = {method: 'GET', headers: {accept: 'application/json'}};
+
+fetch(url, options)
+  .then(res => res.json())
+  .then(json => console.log(json))
+  .catch(err => console.error(err));
+
+  const url = 'https://ophim1.com/v1/api/phim/[slug]';
+const options = {method: 'GET', headers: {accept: 'application/json'}};
+
+fetch(url, options)
+  .then(res => res.json())
+  .then(json => console.log(json))
+  .catch(err => console.error(err));
+
+  const url = 'https://ophim1.com/v1/api/phim/[slug]/images';
+const options = {method: 'GET', headers: {accept: 'application/json'}};
+
+fetch(url, options)
+  .then(res => res.json())
+  .then(json => console.log(json))
+  .catch(err => console.error(err));
+
+
+  const url = 'https://ophim1.com/v1/api/phim/[slug]/peoples';
+const options = {method: 'GET', headers: {accept: 'application/json'}};
+
+fetch(url, options)
+  .then(res => res.json())
+  .then(json => console.log(json))
+  .catch(err => console.error(err));
+
+
+  const url = 'https://ophim1.com/v1/api/phim/[slug]/keywords';
+const options = {method: 'GET', headers: {accept: 'application/json'}};
+
+fetch(url, options)
+  .then(res => res.json())
+  .then(json => console.log(json))
+  .catch(err => console.error(err));
