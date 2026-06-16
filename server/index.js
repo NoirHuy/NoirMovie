@@ -41,6 +41,7 @@ const HistoryItemSchema = new mongoose.Schema({
 const UserSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true, lowercase: true, trim: true },
   email: { type: String, lowercase: true, trim: true },
+  name: { type: String }, // User's full name / Google display name
   password: { type: String }, // Optional for Google OAuth users
   googleId: { type: String, unique: true, sparse: true }, // Sparse unique index allows null for normal users
   avatar: { type: String },
@@ -114,7 +115,8 @@ app.post('/api/auth/register', async (req, res) => {
       user: {
         username: newUser.username,
         email: newUser.email,
-        avatar: newUser.avatar
+        avatar: newUser.avatar,
+        name: newUser.name
       }
     });
   } catch (error) {
@@ -152,7 +154,8 @@ app.post('/api/auth/login', async (req, res) => {
       user: {
         username: user.username,
         email: user.email,
-        avatar: user.avatar
+        avatar: user.avatar,
+        name: user.name
       }
     });
   } catch (error) {
@@ -202,6 +205,9 @@ app.post('/api/auth/google', async (req, res) => {
         if (!user.avatar) {
           user.avatar = picture;
         }
+        if (!user.name) {
+          user.name = name;
+        }
         await user.save();
       } else {
         // 3. Create a new user if not exists
@@ -220,6 +226,7 @@ app.post('/api/auth/google', async (req, res) => {
         user = new User({
           username: finalUsername,
           email: email.toLowerCase().trim(),
+          name,
           googleId,
           avatar: picture,
           watchHistory: []
@@ -228,9 +235,17 @@ app.post('/api/auth/google', async (req, res) => {
         await user.save();
       }
     } else {
-      // Optional: Update avatar if it changed on Google
+      // Optional: Update avatar or name if they changed on Google
+      let updated = false;
       if (user.avatar !== picture) {
         user.avatar = picture;
+        updated = true;
+      }
+      if (user.name !== name) {
+        user.name = name;
+        updated = true;
+      }
+      if (updated) {
         await user.save();
       }
     }
@@ -243,7 +258,8 @@ app.post('/api/auth/google', async (req, res) => {
       user: {
         username: user.username,
         email: user.email,
-        avatar: user.avatar
+        avatar: user.avatar,
+        name: user.name
       }
     });
   } catch (error) {

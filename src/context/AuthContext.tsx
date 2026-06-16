@@ -5,6 +5,7 @@ export interface User {
   username: string;
   email?: string;
   avatar?: string;
+  name?: string;
 }
 
 export interface HistoryItem {
@@ -90,7 +91,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const newUser = { 
       username: data.user.username,
       email: data.user.email,
-      avatar: data.user.avatar
+      avatar: data.user.avatar,
+      name: data.user.name
     };
     setUser(newUser);
     localStorage.setItem('noirmovie_user', JSON.stringify(newUser));
@@ -130,7 +132,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const newUser = { 
       username: data.user.username,
       email: data.user.email,
-      avatar: data.user.avatar
+      avatar: data.user.avatar,
+      name: data.user.name
     };
     setUser(newUser);
     localStorage.setItem('noirmovie_user', JSON.stringify(newUser));
@@ -155,7 +158,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const newUser = { 
       username: data.user.username,
       email: data.user.email,
-      avatar: data.user.avatar 
+      avatar: data.user.avatar,
+      name: data.user.name
     };
     setUser(newUser);
     localStorage.setItem('noirmovie_user', JSON.stringify(newUser));

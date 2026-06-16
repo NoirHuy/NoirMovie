@@ -252,7 +252,7 @@ export const Header: React.FC = () => {
                                     <div className="absolute top-full right-0 mt-3 flex flex-col w-48 glass-panel p-2 rounded-xl shadow-2xl border border-white/10 z-50 animate-fade-in-scale">
                                         <div className="border-b border-white/5 pb-2 mb-1 px-3 py-1.5">
                                             <small className="text-[10px] text-on-surface-variant/50 block">Xin chào,</small>
-                                            <span className="font-semibold text-sm text-on-surface truncate block">{user.username}</span>
+                                            <span className="font-semibold text-sm text-on-surface truncate block">{user.name || user.username}</span>
                                         </div>
                                         <Link 
                                             to="/lich-su" 
@@ -408,7 +408,7 @@ export const Header: React.FC = () => {
                                     )}
                                     <div className="flex-1 min-w-0">
                                         <small className="text-[10px] uppercase tracking-wider text-on-surface-variant/40 font-bold block">Đang đăng nhập</small>
-                                        <span className="font-bold text-sm text-primary truncate block mt-0.5">{user.username}</span>
+                                        <span className="font-bold text-sm text-primary truncate block mt-0.5">{user.name || user.username}</span>
                                     </div>
                                 </div>
                                 <button 
