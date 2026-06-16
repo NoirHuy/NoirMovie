@@ -45,6 +45,11 @@ const UserSchema = new mongoose.Schema({
   password: { type: String }, // Optional for Google OAuth users
   googleId: { type: String, unique: true, sparse: true }, // Sparse unique index allows null for normal users
   avatar: { type: String },
+  givenName: { type: String },
+  familyName: { type: String },
+  emailVerified: { type: Boolean },
+  locale: { type: String },
+  googlePayload: { type: mongoose.Schema.Types.Mixed }, // Store the raw Google profile payload
   watchHistory: [HistoryItemSchema]
 });
 
@@ -186,7 +191,16 @@ app.post('/api/auth/google', async (req, res) => {
     }
 
     const payload = await verifyResponse.json();
-    const { sub: googleId, email, name, picture } = payload;
+    const { 
+      sub: googleId, 
+      email, 
+      name, 
+      picture,
+      given_name: givenName,
+      family_name: familyName,
+      email_verified: emailVerified,
+      locale
+    } = payload;
 
     if (!email) {
       return res.status(400).json({ error: 'Tài khoản Google này không cung cấp thông tin Email.' });
@@ -208,6 +222,11 @@ app.post('/api/auth/google', async (req, res) => {
         if (!user.name) {
           user.name = name;
         }
+        user.givenName = givenName;
+        user.familyName = familyName;
+        user.emailVerified = emailVerified;
+        user.locale = locale;
+        user.googlePayload = payload;
         await user.save();
       } else {
         // 3. Create a new user if not exists
@@ -229,13 +248,18 @@ app.post('/api/auth/google', async (req, res) => {
           name,
           googleId,
           avatar: picture,
+          givenName,
+          familyName,
+          emailVerified,
+          locale,
+          googlePayload: payload,
           watchHistory: []
         });
 
         await user.save();
       }
     } else {
-      // Optional: Update avatar or name if they changed on Google
+      // Update details if they changed on Google
       let updated = false;
       if (user.avatar !== picture) {
         user.avatar = picture;
@@ -245,6 +269,27 @@ app.post('/api/auth/google', async (req, res) => {
         user.name = name;
         updated = true;
       }
+      if (user.givenName !== givenName) {
+        user.givenName = givenName;
+        updated = true;
+      }
+      if (user.familyName !== familyName) {
+        user.familyName = familyName;
+        updated = true;
+      }
+      if (user.emailVerified !== emailVerified) {
+        user.emailVerified = emailVerified;
+        updated = true;
+      }
+      if (user.locale !== locale) {
+        user.locale = locale;
+        updated = true;
+      }
+      
+      // Always store/update the raw payload
+      user.googlePayload = payload;
+      updated = true;
+
       if (updated) {
         await user.save();
       }
