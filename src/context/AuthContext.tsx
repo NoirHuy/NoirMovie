@@ -1,11 +1,20 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 
+export interface Subscription {
+  plan: 'Free' | 'Standard' | 'VIP';
+  status: 'active' | 'inactive';
+  expiresAt?: string;
+}
+
 export interface User {
   username: string;
   email?: string;
   avatar?: string;
   name?: string;
+  bio?: string;
+  phoneNumber?: string;
+  subscription?: Subscription;
 }
 
 export interface HistoryItem {
@@ -28,6 +37,8 @@ interface AuthContextType {
   loginWithGoogle: (credential: string) => Promise<void>;
   loginWithFacebook: (accessToken: string, profile: any) => Promise<void>;
   logout: () => void;
+  updateProfile: (profileData: { name?: string; email?: string; phoneNumber?: string; bio?: string }) => Promise<void>;
+  subscribePlan: (plan: 'Free' | 'Standard' | 'VIP') => Promise<void>;
   watchHistory: HistoryItem[];
   addToHistory: (movie: any, episodeSlug?: string, currentTime?: number, duration?: number) => Promise<void>;
   updateWatchProgress: (movieSlug: string, episodeSlug: string, currentTime: number, duration?: number) => Promise<void>;
@@ -48,6 +59,33 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (savedUser && token) {
       const parsedUser = JSON.parse(savedUser);
       setUser(parsedUser);
+
+      // Load profile details from backend to sync subscription/bio/phone
+      fetch('/api/user/profile', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+        .then(res => {
+          if (!res.ok) throw new Error('Failed to fetch profile');
+          return res.json();
+        })
+        .then(profileData => {
+          const syncedUser: User = {
+            username: profileData.username,
+            email: profileData.email,
+            avatar: profileData.avatar,
+            name: profileData.name,
+            bio: profileData.bio,
+            phoneNumber: profileData.phoneNumber,
+            subscription: profileData.subscription
+          };
+          setUser(syncedUser);
+          localStorage.setItem('noirmovie_user', JSON.stringify(syncedUser));
+        })
+        .catch(err => {
+          console.error('Error syncing profile from backend:', err);
+        });
 
       // Load history from backend MongoDB
       fetch('/api/history', {
@@ -89,11 +127,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       throw new Error(data.error || 'Đăng nhập thất bại.');
     }
 
-    const newUser = { 
+    const newUser: User = { 
       username: data.user.username,
       email: data.user.email,
       avatar: data.user.avatar,
-      name: data.user.name
+      name: data.user.name,
+      bio: data.user.bio,
+      phoneNumber: data.user.phoneNumber,
+      subscription: data.user.subscription
     };
     setUser(newUser);
     localStorage.setItem('noirmovie_user', JSON.stringify(newUser));
@@ -130,11 +171,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       throw new Error(data.error || 'Đăng ký thất bại.');
     }
 
-    const newUser = { 
+    const newUser: User = { 
       username: data.user.username,
       email: data.user.email,
       avatar: data.user.avatar,
-      name: data.user.name
+      name: data.user.name,
+      bio: data.user.bio,
+      phoneNumber: data.user.phoneNumber,
+      subscription: data.user.subscription
     };
     setUser(newUser);
     localStorage.setItem('noirmovie_user', JSON.stringify(newUser));
@@ -156,11 +200,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       throw new Error(data.error || 'Đăng nhập Google thất bại.');
     }
 
-    const newUser = { 
+    const newUser: User = { 
       username: data.user.username,
       email: data.user.email,
       avatar: data.user.avatar,
-      name: data.user.name
+      name: data.user.name,
+      bio: data.user.bio,
+      phoneNumber: data.user.phoneNumber,
+      subscription: data.user.subscription
     };
     setUser(newUser);
     localStorage.setItem('noirmovie_user', JSON.stringify(newUser));
@@ -197,11 +244,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       throw new Error(data.error || 'Đăng nhập Facebook thất bại.');
     }
 
-    const newUser = { 
+    const newUser: User = { 
       username: data.user.username,
       email: data.user.email,
       avatar: data.user.avatar,
-      name: data.user.name
+      name: data.user.name,
+      bio: data.user.bio,
+      phoneNumber: data.user.phoneNumber,
+      subscription: data.user.subscription
     };
     setUser(newUser);
     localStorage.setItem('noirmovie_user', JSON.stringify(newUser));
@@ -229,6 +279,70 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setWatchHistory([]);
     localStorage.removeItem('noirmovie_user');
     localStorage.removeItem('noirmovie_token');
+  };
+
+  const updateProfile = async (profileData: { name?: string; email?: string; phoneNumber?: string; bio?: string }) => {
+    const token = localStorage.getItem('noirmovie_token');
+    if (!token) throw new Error('Không tìm thấy mã xác thực. Vui lòng đăng nhập lại.');
+
+    const response = await fetch('/api/user/profile', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(profileData)
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Cập nhật hồ sơ thất bại.');
+    }
+
+    const updatedUser: User = {
+      username: data.username,
+      email: data.email,
+      avatar: data.avatar,
+      name: data.name,
+      bio: data.bio,
+      phoneNumber: data.phoneNumber,
+      subscription: data.subscription
+    };
+
+    setUser(updatedUser);
+    localStorage.setItem('noirmovie_user', JSON.stringify(updatedUser));
+  };
+
+  const subscribePlan = async (plan: 'Free' | 'Standard' | 'VIP') => {
+    const token = localStorage.getItem('noirmovie_token');
+    if (!token) throw new Error('Không tìm thấy mã xác thực. Vui lòng đăng nhập lại.');
+
+    const response = await fetch('/api/user/subscribe', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ plan })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Đăng ký gói cước thất bại.');
+    }
+
+    const updatedUser: User = {
+      username: data.username,
+      email: data.email,
+      avatar: data.avatar,
+      name: data.name,
+      bio: data.bio,
+      phoneNumber: data.phoneNumber,
+      subscription: data.subscription
+    };
+
+    setUser(updatedUser);
+    localStorage.setItem('noirmovie_user', JSON.stringify(updatedUser));
   };
 
   const addToHistory = async (movie: any, episodeSlug?: string, currentTime?: number, duration?: number) => {
@@ -378,7 +492,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, loginWithGoogle, loginWithFacebook, logout, watchHistory, addToHistory, updateWatchProgress, clearHistory }}>
+    <AuthContext.Provider value={{ user, login, register, loginWithGoogle, loginWithFacebook, logout, updateProfile, subscribePlan, watchHistory, addToHistory, updateWatchProgress, clearHistory }}>
       {children}
     </AuthContext.Provider>
   );

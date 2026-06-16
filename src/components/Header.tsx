@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, ChevronDown, LogOut, History, User, Menu, X, Globe, Library } from 'lucide-react';
+import { Search, ChevronDown, LogOut, History, User, Menu, X, Globe, Library, Crown } from 'lucide-react';
 import { apiService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { AuthModal } from './AuthModal';
@@ -20,6 +20,17 @@ export const Header: React.FC = () => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     const { user, logout } = useAuth();
+
+    // Event listener for opening auth modal from other pages (e.g. ProfilePage)
+    useEffect(() => {
+        const handleTriggerLogin = () => {
+            setIsAuthModalOpen(true);
+        };
+        window.addEventListener('trigger-login-modal', handleTriggerLogin);
+        return () => {
+            window.removeEventListener('trigger-login-modal', handleTriggerLogin);
+        };
+    }, []);
 
     useEffect(() => {
         const fetchNavData = async () => {
@@ -235,7 +246,11 @@ export const Header: React.FC = () => {
                             <div className="relative profile-menu-container">
                                 <button 
                                     onClick={() => setIsProfileOpen(!isProfileOpen)}
-                                    className="w-10 h-10 rounded-full flex items-center justify-center bg-primary/20 border border-primary/20 text-primary font-bold hover:scale-105 active:scale-95 transition-all cursor-pointer overflow-hidden"
+                                    className={`w-10 h-10 rounded-full flex items-center justify-center font-bold hover:scale-105 active:scale-95 transition-all cursor-pointer overflow-hidden border ${
+                                        user.subscription?.plan === 'VIP' ? 'border-amber-500 bg-amber-500/20 text-amber-400 ring-2 ring-amber-500/40 shadow-[0_0_12px_rgba(245,158,11,0.4)]' :
+                                        user.subscription?.plan === 'Standard' ? 'border-blue-500 bg-blue-500/20 text-blue-400 ring-2 ring-blue-500/40 shadow-[0_0_12px_rgba(59,130,246,0.4)]' :
+                                        'bg-primary/20 border-primary/20 text-primary'
+                                    }`}
                                 >
                                     {user.avatar ? (
                                         <img 
@@ -250,10 +265,35 @@ export const Header: React.FC = () => {
                                 </button>
                                 {isProfileOpen && (
                                     <div className="absolute top-full right-0 mt-3 flex flex-col w-48 glass-panel p-2 rounded-xl shadow-2xl border border-white/10 z-50 animate-fade-in-scale">
-                                        <div className="border-b border-white/5 pb-2 mb-1 px-3 py-1.5">
+                                        <div className="border-b border-white/5 pb-2 mb-1 px-3 py-1.5 flex flex-col">
                                             <small className="text-[10px] text-on-surface-variant/50 block">Xin chào,</small>
                                             <span className="font-semibold text-sm text-on-surface truncate block">{user.name || user.username}</span>
+                                            {user.subscription?.plan !== 'Free' ? (
+                                                <span className={`text-[8px] font-headline font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border mt-1 text-center w-max ${
+                                                    user.subscription?.plan === 'VIP' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                                                }`}>
+                                                    {user.subscription?.plan}
+                                                </span>
+                                            ) : (
+                                                <span className="text-[8px] font-headline font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-800/10 text-zinc-400 mt-1 text-center w-max">
+                                                    GÓI FREE
+                                                </span>
+                                            )}
                                         </div>
+                                        <Link 
+                                            to="/ho-so" 
+                                            onClick={() => setIsProfileOpen(false)}
+                                            className="flex items-center gap-2 text-sm py-2 px-3 rounded-lg text-on-surface-variant hover:bg-primary/10 hover:text-primary transition-all"
+                                        >
+                                            <User size={16} /> Hồ sơ cá nhân
+                                        </Link>
+                                        <Link 
+                                            to="/premium" 
+                                            onClick={() => setIsProfileOpen(false)}
+                                            className="flex items-center gap-2 text-sm py-2 px-3 rounded-lg text-on-surface-variant hover:bg-primary/10 hover:text-primary transition-all font-semibold"
+                                        >
+                                            <Crown size={16} className={user.subscription?.plan === 'VIP' ? 'text-amber-400' : 'text-primary'} /> Nâng cấp Premium
+                                        </Link>
                                         <Link 
                                             to="/lich-su" 
                                             onClick={() => setIsProfileOpen(false)}
@@ -392,28 +432,59 @@ export const Header: React.FC = () => {
 
                         {/* Active User details & logout */}
                         {user && (
-                            <div className="pt-6 border-t border-white/5 flex flex-col gap-4">
+                            <div className="pt-6 border-t border-white/5 flex flex-col gap-3">
                                 <div className="px-4 py-3 bg-white/5 rounded-xl border border-white/5 flex items-center gap-3">
                                     {user.avatar ? (
                                         <img 
                                             src={user.avatar} 
                                             alt={user.username} 
-                                            className="w-10 h-10 rounded-full object-cover border border-primary/20" 
+                                            className={`w-10 h-10 rounded-full object-cover border ${
+                                                user.subscription?.plan === 'VIP' ? 'border-amber-500' :
+                                                user.subscription?.plan === 'Standard' ? 'border-blue-500' :
+                                                'border-primary/20'
+                                            }`} 
                                             referrerPolicy="no-referrer"
                                         />
                                     ) : (
-                                        <div className="w-10 h-10 rounded-full flex items-center justify-center bg-primary/20 border border-primary/20 text-primary font-bold">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${
+                                            user.subscription?.plan === 'VIP' ? 'bg-amber-500/20 border border-amber-500 text-amber-400' :
+                                            user.subscription?.plan === 'Standard' ? 'bg-blue-500/20 border border-blue-500 text-blue-400' :
+                                            'bg-primary/20 border border-primary/20 text-primary'
+                                        }`}>
                                             {user.username.charAt(0).toUpperCase()}
                                         </div>
                                     )}
                                     <div className="flex-1 min-w-0">
-                                        <small className="text-[10px] uppercase tracking-wider text-on-surface-variant/40 font-bold block">Đang đăng nhập</small>
-                                        <span className="font-bold text-sm text-primary truncate block mt-0.5">{user.name || user.username}</span>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="font-bold text-sm text-primary truncate block">{user.name || user.username}</span>
+                                            {user.subscription?.plan !== 'Free' && (
+                                                <span className={`text-[8px] font-headline font-bold uppercase tracking-wider px-1 rounded border ${
+                                                    user.subscription?.plan === 'VIP' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                                                }`}>
+                                                    {user.subscription?.plan}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <small className="text-[10px] text-on-surface-variant/40 block mt-0.5">@{user.username}</small>
                                     </div>
                                 </div>
+                                <Link 
+                                    to="/ho-so" 
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                    className="w-full bg-white/5 border border-white/10 hover:bg-white/10 py-3 rounded-xl font-bold text-sm transition-colors text-center text-white flex items-center justify-center gap-2"
+                                >
+                                    <User size={16} /> Hồ Sơ Cá Nhân
+                                </Link>
+                                <Link 
+                                    to="/premium" 
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                    className="w-full bg-gradient-to-r from-amber-500 to-yellow-600 text-black hover:brightness-110 py-3 rounded-xl font-headline font-black text-sm transition-colors text-center flex items-center justify-center gap-2"
+                                >
+                                    <Crown size={16} /> Nâng Cấp Premium
+                                </Link>
                                 <button 
                                     onClick={handleLogout}
-                                    className="w-full bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 py-3.5 rounded-xl font-bold text-sm transition-colors cursor-pointer text-center"
+                                    className="w-full bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 py-3 rounded-xl font-bold text-sm transition-colors cursor-pointer text-center"
                                 >
                                     Đăng Xuất
                                 </button>

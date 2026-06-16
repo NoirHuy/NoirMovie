@@ -4,6 +4,8 @@ import { Home } from './pages/Home';
 import { MovieDetail } from './pages/MovieDetail';
 import { Catalog } from './pages/Catalog';
 import { History } from './pages/History';
+import { ProfilePage } from './pages/ProfilePage';
+import { PremiumPage } from './pages/PremiumPage';
 
 function App() {
   return (
@@ -19,6 +21,8 @@ function App() {
             <Route path="/quoc-gia/:slug" element={<Catalog />} />
             <Route path="/tim-kiem" element={<Catalog />} />
             <Route path="/lich-su" element={<History />} />
+            <Route path="/ho-so" element={<ProfilePage />} />
+            <Route path="/premium" element={<PremiumPage />} />
           </Routes>
         </main>
       </div>

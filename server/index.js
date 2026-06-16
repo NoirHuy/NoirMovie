@@ -131,6 +131,13 @@ const UserSchema = new mongoose.Schema({
   locale: { type: String },
   googlePayload: { type: mongoose.Schema.Types.Mixed }, // Store the raw Google profile payload
   facebookPayload: { type: mongoose.Schema.Types.Mixed }, // Store the raw Facebook profile payload
+  bio: { type: String },
+  phoneNumber: { type: String },
+  subscription: {
+    plan: { type: String, enum: ['Free', 'Standard', 'VIP'], default: 'Free' },
+    status: { type: String, enum: ['active', 'inactive'], default: 'inactive' },
+    expiresAt: { type: Date }
+  },
   watchHistory: [HistoryItemSchema]
 });
 
@@ -202,7 +209,10 @@ app.post('/api/auth/register', async (req, res) => {
         username: newUser.username,
         email: newUser.email,
         avatar: newUser.avatar,
-        name: newUser.name
+        name: newUser.name,
+        bio: newUser.bio,
+        phoneNumber: newUser.phoneNumber,
+        subscription: newUser.subscription || { plan: 'Free', status: 'inactive' }
       }
     });
   } catch (error) {
@@ -241,7 +251,10 @@ app.post('/api/auth/login', async (req, res) => {
         username: user.username,
         email: user.email,
         avatar: user.avatar,
-        name: user.name
+        name: user.name,
+        bio: user.bio,
+        phoneNumber: user.phoneNumber,
+        subscription: user.subscription || { plan: 'Free', status: 'inactive' }
       }
     });
   } catch (error) {
@@ -388,7 +401,10 @@ app.post('/api/auth/google', async (req, res) => {
         username: user.username,
         email: user.email,
         avatar: user.avatar,
-        name: user.name
+        name: user.name,
+        bio: user.bio,
+        phoneNumber: user.phoneNumber,
+        subscription: user.subscription || { plan: 'Free', status: 'inactive' }
       }
     });
   } catch (error) {
@@ -616,7 +632,10 @@ app.post('/api/auth/facebook', async (req, res) => {
         username: user.username,
         email: user.email,
         avatar: user.avatar,
-        name: user.name
+        name: user.name,
+        bio: user.bio,
+        phoneNumber: user.phoneNumber,
+        subscription: user.subscription || { plan: 'Free', status: 'inactive' }
       }
     });
   } catch (error) {
@@ -704,6 +723,106 @@ app.delete('/api/history', authenticateToken, async (req, res) => {
     res.json([]);
   } catch (error) {
     res.status(500).json({ error: 'Lỗi khi xóa lịch sử xem phim: ' + error.message });
+  }
+});
+
+// --- PROFILE & PREMIUM SUBSCRIPTION ENDPOINTS ---
+
+// Get current user profile (with auth token)
+app.get('/api/user/profile', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'Không tìm thấy người dùng.' });
+    }
+    res.json({
+      username: user.username,
+      email: user.email,
+      name: user.name,
+      avatar: user.avatar,
+      bio: user.bio,
+      phoneNumber: user.phoneNumber,
+      subscription: user.subscription || { plan: 'Free', status: 'inactive' }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Lỗi máy chủ khi lấy hồ sơ: ' + error.message });
+  }
+});
+
+// Update user profile (with auth token)
+app.put('/api/user/profile', authenticateToken, async (req, res) => {
+  try {
+    const { name, email, phoneNumber, bio } = req.body;
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'Không tìm thấy người dùng.' });
+    }
+
+    if (name !== undefined) user.name = name;
+    if (email !== undefined) user.email = email.toLowerCase().trim();
+    if (phoneNumber !== undefined) user.phoneNumber = phoneNumber;
+    if (bio !== undefined) user.bio = bio;
+
+    await user.save();
+
+    res.json({
+      username: user.username,
+      email: user.email,
+      name: user.name,
+      avatar: user.avatar,
+      bio: user.bio,
+      phoneNumber: user.phoneNumber,
+      subscription: user.subscription || { plan: 'Free', status: 'inactive' }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Lỗi máy chủ khi cập nhật hồ sơ: ' + error.message });
+  }
+});
+
+// Simulated Subscribe Plan (with auth token)
+app.post('/api/user/subscribe', authenticateToken, async (req, res) => {
+  try {
+    const { plan } = req.body;
+    if (!['Free', 'Standard', 'VIP'].includes(plan)) {
+      return res.status(400).json({ error: 'Gói đăng ký không hợp lệ.' });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'Không tìm thấy người dùng.' });
+    }
+
+    if (plan === 'Free') {
+      user.subscription = {
+        plan: 'Free',
+        status: 'inactive',
+        expiresAt: undefined
+      };
+    } else {
+      // 30 days from now
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
+      
+      user.subscription = {
+        plan,
+        status: 'active',
+        expiresAt
+      };
+    }
+
+    await user.save();
+
+    res.json({
+      username: user.username,
+      email: user.email,
+      name: user.name,
+      avatar: user.avatar,
+      bio: user.bio,
+      phoneNumber: user.phoneNumber,
+      subscription: user.subscription
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Lỗi máy chủ khi đăng ký gói cước: ' + error.message });
   }
 });
 

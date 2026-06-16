@@ -1,11 +1,41 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Crown } from 'lucide-react';
 import { Hero } from '../components/Hero';
 import { VideoPlayer } from '../components/VideoPlayer';
 import { EpisodeList } from '../components/EpisodeList';
 import { apiService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+
+const planValues = {
+    'Free': 0,
+    'Standard': 1,
+    'VIP': 2
+};
+
+const getRequiredPlan = (movie: any): 'Free' | 'Standard' | 'VIP' => {
+    if (!movie) return 'Free';
+    
+    // 1. VIP condition: newer releases (e.g. year >= 2025), tmdb rating >= 8.5, or name/slug contains special markers
+    const isVip = 
+        movie.year >= 2025 || 
+        (movie.tmdb?.vote_average && movie.tmdb.vote_average >= 8.5) ||
+        movie.slug?.toLowerCase().includes('vip') ||
+        movie.name?.toLowerCase().includes('vip');
+    
+    if (isVip) return 'VIP';
+
+    // 2. Standard condition: Single movies ("phim lẻ", type === "single" or single categories like theater/blockbusters) or action movies with good rating, or name contains premium
+    const isStandard = 
+        movie.type === 'single' || 
+        movie.slug?.toLowerCase().includes('chieu-rap') || 
+        movie.slug?.toLowerCase().includes('premium') ||
+        (movie.category && movie.category.some((c: any) => c.slug === 'hanh-dong' || c.slug === 'vien-tuong'));
+
+    if (isStandard) return 'Standard';
+
+    return 'Free';
+};
 
 export const MovieDetail: React.FC = () => {
     const { slug } = useParams<{ slug: string }>();
@@ -29,6 +59,11 @@ export const MovieDetail: React.FC = () => {
     // Auth context for tracking history
     const { addToHistory, updateWatchProgress, user, watchHistory } = useAuth();
     const historyAddedRef = useRef(false);
+
+    const movie = movieData?.item;
+    const requiredPlan = getRequiredPlan(movie);
+    const userPlan = user?.subscription?.plan || 'Free';
+    const hasAccess = planValues[userPlan] >= planValues[requiredPlan];
 
     useEffect(() => {
         // Reset state on new movie
@@ -99,21 +134,19 @@ export const MovieDetail: React.FC = () => {
 
     // Track Watch History
     useEffect(() => {
-        if (movieData?.item && user && !historyAddedRef.current) {
+        if (movie && user && !historyAddedRef.current) {
             // Check if there is existing history to resume from
-            const existingHistory = watchHistory.find(h => h.slug === movieData.item.slug);
+            const existingHistory = watchHistory.find(h => h.slug === movie.slug);
 
             if (existingHistory && existingHistory.currentEpisodeSlug) {
                 // We will set the episode later when the episodes list is parsed
                 setInitialTime(existingHistory.currentTime || 0);
             }
 
-            addToHistory(movieData.item);
+            addToHistory(movie);
             historyAddedRef.current = true;
         }
-    }, [movieData, user, addToHistory, watchHistory]);
-
-    const movie = movieData?.item;
+    }, [movie, user, addToHistory, watchHistory]);
 
     // Extract all servers (Vietsub, Thuyết minh, v.v)
     const episodeServers = movie?.episodes || movieData?.episodes || [];
@@ -126,7 +159,7 @@ export const MovieDetail: React.FC = () => {
     // Automatically select the saved episode if resuming from history
     useEffect(() => {
         if (!movie) return;
-        if (episodes.length > 0 && !currentEpisode && user && historyAddedRef.current) {
+        if (episodes.length > 0 && !currentEpisode && user && historyAddedRef.current && hasAccess) {
             const existingHistory = watchHistory.find(h => h.slug === movie.slug);
             if (existingHistory && existingHistory.currentEpisodeSlug) {
                 // Find server that contains this episode
@@ -152,7 +185,7 @@ export const MovieDetail: React.FC = () => {
                 }
             }
         }
-    }, [episodes, currentEpisode, user, watchHistory, movie?.slug, validServers, currentServerIndex]);
+    }, [episodes, currentEpisode, user, watchHistory, movie?.slug, validServers, currentServerIndex, hasAccess]);
 
     // Cleanup timeout on unmount
     useEffect(() => {
@@ -164,7 +197,7 @@ export const MovieDetail: React.FC = () => {
     }, []);
 
     const saveProgressNow = () => {
-        if (user && currentEpisode && movie?.slug && currentTimeRef.current > 0) {
+        if (user && currentEpisode && movie?.slug && currentTimeRef.current > 0 && hasAccess) {
             updateWatchProgress(movie.slug, currentEpisode.slug, currentTimeRef.current, episodeDurationRef.current || undefined);
         }
     };
@@ -183,7 +216,7 @@ export const MovieDetail: React.FC = () => {
             window.removeEventListener('pagehide', handleUnload);
             saveProgressNow();
         };
-    }, [user, currentEpisode, movie?.slug]);
+    }, [user, currentEpisode, movie?.slug, hasAccess]);
 
     if (loading) {
         return (
@@ -209,6 +242,10 @@ export const MovieDetail: React.FC = () => {
     const imageDomain = movieData.APP_DOMAIN_CDN_IMAGE || 'https://img.ophim.live';
 
     const handlePlayClick = () => {
+        if (!hasAccess) {
+            playerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return;
+        }
         if (!currentEpisode && episodes.length > 0) {
             setCurrentEpisode(episodes[0]);
             setInitialTime(0);
@@ -219,6 +256,10 @@ export const MovieDetail: React.FC = () => {
     };
 
     const handleEpisodeSelect = (episode: any) => {
+        if (!hasAccess) {
+            playerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return;
+        }
         setCurrentEpisode(episode);
         setInitialTime(0); // Reset time when manually changing episode
         playerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -231,7 +272,7 @@ export const MovieDetail: React.FC = () => {
     };
 
     const handleNextEpisode = () => {
-        if (!currentEpisode || episodes.length <= 1) return;
+        if (!currentEpisode || episodes.length <= 1 || !hasAccess) return;
         const currentIndex = episodes.findIndex((ep: any) => ep.slug === currentEpisode.slug);
         if (currentIndex !== -1 && currentIndex + 1 < episodes.length) {
             handleEpisodeSelect(episodes[currentIndex + 1]);
@@ -253,6 +294,60 @@ export const MovieDetail: React.FC = () => {
         }, 5000); // Save every 5 seconds of playback to avoid lag
     };
 
+    const renderLockOverlay = (required: 'Standard' | 'VIP') => {
+        const isVip = required === 'VIP';
+        const title = isVip ? 'Đặc Quyền Thành Viên VIP' : 'Yêu Cầu Nâng Cấp Gói Cước';
+        const description = isVip 
+            ? 'Bộ phim bom tấn chất lượng 4K này chỉ dành riêng cho các thành viên VIP của Cineos.' 
+            : 'Để xem bộ phim chiếu rạp hấp dẫn này, vui lòng nâng cấp lên tài khoản Standard hoặc VIP.';
+        
+        return (
+            <div className={`aspect-video w-full rounded-2xl overflow-hidden shadow-2xl flex flex-col items-center justify-center border relative p-6 text-center ${
+                isVip 
+                    ? 'border-amber-500/40 bg-gradient-to-b from-zinc-950 via-zinc-900 to-amber-950/20' 
+                    : 'border-blue-500/40 bg-gradient-to-b from-zinc-950 via-zinc-900 to-blue-950/20'
+            }`}>
+                <div className={`p-4 rounded-full mb-4 border ${
+                    isVip ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+                }`}>
+                    <Crown size={32} className={isVip ? 'animate-bounce text-amber-400' : 'text-blue-400'} />
+                </div>
+                
+                <h3 className="font-headline text-xl md:text-2xl font-black text-white mb-2">
+                    {title}
+                </h3>
+                <p className="text-xs md:text-sm text-zinc-400 max-w-md mb-6 leading-relaxed">
+                    {description}
+                </p>
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                    {!user ? (
+                        <button 
+                            onClick={() => {
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                                window.dispatchEvent(new CustomEvent('trigger-login-modal'));
+                            }}
+                            className="bg-white/10 hover:bg-white/15 text-white font-headline font-bold text-xs py-3 px-6 rounded-xl border border-white/10 hover:border-white/20 transition duration-300 cursor-pointer"
+                        >
+                            Đăng Nhập Tài Khoản
+                        </button>
+                    ) : null}
+                    
+                    <button 
+                        onClick={() => navigate('/premium')}
+                        className={`font-headline font-bold text-xs py-3 px-6 rounded-xl transition duration-300 flex items-center justify-center gap-1.5 shadow-md cursor-pointer ${
+                            isVip 
+                                ? 'bg-gradient-to-r from-amber-500 to-yellow-600 text-black hover:brightness-110 shadow-amber-500/20' 
+                                : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:brightness-110 shadow-blue-500/20'
+                        }`}
+                    >
+                        Nâng Cấp Gói {required} Chỉ Từ 79k/tháng
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
     const handlePause = (currentTime: number, duration?: number) => {
         currentTimeRef.current = currentTime;
         if (duration) episodeDurationRef.current = duration;
@@ -272,7 +367,9 @@ export const MovieDetail: React.FC = () => {
                     
                     {/* Left Column: Player and Details */}
                     <div className="lg:col-span-8 space-y-6" ref={playerRef}>
-                        {currentEpisode ? (
+                        {!hasAccess ? (
+                            renderLockOverlay(requiredPlan as 'Standard' | 'VIP')
+                        ) : currentEpisode ? (
                              <VideoPlayer
                                 episode={currentEpisode}
                                 posterUrl={movie.poster_url?.startsWith('http') ? movie.poster_url : `${imageDomain}/uploads/movies/${movie.poster_url || movie.thumb_url}`}
@@ -321,6 +418,13 @@ export const MovieDetail: React.FC = () => {
                                     {movie.tmdb?.vote_average && (
                                         <span className="flex items-center gap-1 text-primary font-bold bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/20">
                                             ★ {movie.tmdb.vote_average.toFixed(1)}
+                                        </span>
+                                    )}
+                                    {requiredPlan !== 'Free' && (
+                                        <span className={`text-[10px] font-headline font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
+                                            requiredPlan === 'VIP' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-blue-500/10 text-blue-400 border-blue-500/30'
+                                        }`}>
+                                            Gói {requiredPlan}
                                         </span>
                                     )}
                                     {movie.year && <span>{movie.year}</span>}
