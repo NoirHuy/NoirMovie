@@ -117,7 +117,7 @@ export const Header: React.FC = () => {
                             onClick={() => setIsMobileMenuOpen(false)}
                             className="font-headline text-2xl font-bold text-primary tracking-tighter hover:scale-105 transition-transform duration-300"
                         >
-                            CINEOS<span className="text-white">Movie</span>
+                            Noir<span className="text-white">Movie</span>
                         </Link>
                         
                         <nav className="hidden lg:flex items-center gap-8">

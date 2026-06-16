@@ -220,8 +220,8 @@ export const History: React.FC = () => {
             {/* Footer */}
             <footer className="w-full py-12 bg-[#0e0e10] border-t border-white/5 flex flex-col md:flex-row justify-between items-center px-6 md:px-container-desktop gap-8 text-xs font-semibold text-on-secondary-container/60">
                 <div className="flex flex-col gap-2 text-center md:text-left">
-                    <span className="font-headline text-lg font-bold text-primary tracking-tighter">CINEOS</span>
-                    <p>© 2026 CINEOS Streaming. All rights reserved.</p>
+                    <span className="font-headline text-lg font-bold text-primary tracking-tighter">NoirMovie</span>
+                    <p>© 2026 NoirMovie Streaming. All rights reserved.</p>
                 </div>
                 <div className="flex flex-wrap justify-center gap-6 md:gap-8">
                     <a className="hover:text-primary transition-colors" href="#">Privacy Policy</a>

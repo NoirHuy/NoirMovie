@@ -224,6 +224,20 @@ export const MovieDetail: React.FC = () => {
         playerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
+    const hasNextEpisode = () => {
+        if (!currentEpisode || episodes.length <= 1) return false;
+        const currentIndex = episodes.findIndex((ep: any) => ep.slug === currentEpisode.slug);
+        return currentIndex !== -1 && currentIndex + 1 < episodes.length;
+    };
+
+    const handleNextEpisode = () => {
+        if (!currentEpisode || episodes.length <= 1) return;
+        const currentIndex = episodes.findIndex((ep: any) => ep.slug === currentEpisode.slug);
+        if (currentIndex !== -1 && currentIndex + 1 < episodes.length) {
+            handleEpisodeSelect(episodes[currentIndex + 1]);
+        }
+    };
+
     // Debounce saving watch progress to prevent hammering localStorage
     const handleTimeUpdate = (currentTime: number, duration?: number) => {
         currentTimeRef.current = currentTime;
@@ -259,12 +273,14 @@ export const MovieDetail: React.FC = () => {
                     {/* Left Column: Player and Details */}
                     <div className="lg:col-span-8 space-y-6" ref={playerRef}>
                         {currentEpisode ? (
-                            <VideoPlayer
+                             <VideoPlayer
                                 episode={currentEpisode}
                                 posterUrl={movie.poster_url?.startsWith('http') ? movie.poster_url : `${imageDomain}/uploads/movies/${movie.poster_url || movie.thumb_url}`}
                                 initialTime={initialTime}
                                 onTimeUpdate={handleTimeUpdate}
                                 onPause={handlePause}
+                                onNextEpisode={handleNextEpisode}
+                                hasNextEpisode={hasNextEpisode()}
                             />
                         ) : (
                             <div className="aspect-video bg-surface-container rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center border border-white/5 p-6">

@@ -113,7 +113,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
           {/* Branding */}
           <div className="flex flex-col items-center mb-10">
-            <span className="font-headline text-3xl font-extrabold text-primary tracking-tighter mb-2">CINEOS</span>
+            <span className="font-headline text-3xl font-extrabold text-primary tracking-tighter mb-2">NoirMovie</span>
             <p className="text-xs text-on-surface-variant uppercase tracking-widest font-semibold">Enter the Frame</p>
           </div>
 
