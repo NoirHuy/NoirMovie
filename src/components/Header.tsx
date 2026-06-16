@@ -235,9 +235,18 @@ export const Header: React.FC = () => {
                             <div className="relative profile-menu-container">
                                 <button 
                                     onClick={() => setIsProfileOpen(!isProfileOpen)}
-                                    className="w-10 h-10 rounded-full flex items-center justify-center bg-primary/20 border border-primary/20 text-primary font-bold hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                                    className="w-10 h-10 rounded-full flex items-center justify-center bg-primary/20 border border-primary/20 text-primary font-bold hover:scale-105 active:scale-95 transition-all cursor-pointer overflow-hidden"
                                 >
-                                    {user.username.charAt(0).toUpperCase()}
+                                    {user.avatar ? (
+                                        <img 
+                                            src={user.avatar} 
+                                            alt={user.username} 
+                                            className="w-full h-full object-cover" 
+                                            referrerPolicy="no-referrer"
+                                        />
+                                    ) : (
+                                        user.username.charAt(0).toUpperCase()
+                                    )}
                                 </button>
                                 {isProfileOpen && (
                                     <div className="absolute top-full right-0 mt-3 flex flex-col w-48 glass-panel p-2 rounded-xl shadow-2xl border border-white/10 z-50 animate-fade-in-scale">
@@ -384,9 +393,23 @@ export const Header: React.FC = () => {
                         {/* Active User details & logout */}
                         {user && (
                             <div className="pt-6 border-t border-white/5 flex flex-col gap-4">
-                                <div className="px-4 py-3 bg-white/5 rounded-xl border border-white/5">
-                                    <small className="text-[10px] uppercase tracking-wider text-on-surface-variant/40 font-bold block">Đang đăng nhập</small>
-                                    <span className="font-bold text-sm text-primary truncate block mt-0.5">{user.username}</span>
+                                <div className="px-4 py-3 bg-white/5 rounded-xl border border-white/5 flex items-center gap-3">
+                                    {user.avatar ? (
+                                        <img 
+                                            src={user.avatar} 
+                                            alt={user.username} 
+                                            className="w-10 h-10 rounded-full object-cover border border-primary/20" 
+                                            referrerPolicy="no-referrer"
+                                        />
+                                    ) : (
+                                        <div className="w-10 h-10 rounded-full flex items-center justify-center bg-primary/20 border border-primary/20 text-primary font-bold">
+                                            {user.username.charAt(0).toUpperCase()}
+                                        </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                        <small className="text-[10px] uppercase tracking-wider text-on-surface-variant/40 font-bold block">Đang đăng nhập</small>
+                                        <span className="font-bold text-sm text-primary truncate block mt-0.5">{user.username}</span>
+                                    </div>
                                 </div>
                                 <button 
                                     onClick={handleLogout}

@@ -3,6 +3,8 @@ import type { ReactNode } from 'react';
 
 export interface User {
   username: string;
+  email?: string;
+  avatar?: string;
 }
 
 export interface HistoryItem {
@@ -22,6 +24,7 @@ interface AuthContextType {
   user: User | null;
   login: (username: string, password: string) => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<void>;
+  loginWithGoogle: (credential: string) => Promise<void>;
   logout: () => void;
   watchHistory: HistoryItem[];
   addToHistory: (movie: any, episodeSlug?: string, currentTime?: number, duration?: number) => Promise<void>;
@@ -84,7 +87,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       throw new Error(data.error || 'Đăng nhập thất bại.');
     }
 
-    const newUser = { username: data.user.username };
+    const newUser = { 
+      username: data.user.username,
+      email: data.user.email,
+      avatar: data.user.avatar
+    };
     setUser(newUser);
     localStorage.setItem('noirmovie_user', JSON.stringify(newUser));
     localStorage.setItem('noirmovie_token', data.token);
@@ -120,11 +127,55 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       throw new Error(data.error || 'Đăng ký thất bại.');
     }
 
-    const newUser = { username: data.user.username };
+    const newUser = { 
+      username: data.user.username,
+      email: data.user.email,
+      avatar: data.user.avatar
+    };
     setUser(newUser);
     localStorage.setItem('noirmovie_user', JSON.stringify(newUser));
     localStorage.setItem('noirmovie_token', data.token);
     setWatchHistory([]);
+  };
+
+  const loginWithGoogle = async (credential: string) => {
+    const response = await fetch('/api/auth/google', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ credential })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Đăng nhập Google thất bại.');
+    }
+
+    const newUser = { 
+      username: data.user.username,
+      email: data.user.email,
+      avatar: data.user.avatar 
+    };
+    setUser(newUser);
+    localStorage.setItem('noirmovie_user', JSON.stringify(newUser));
+    localStorage.setItem('noirmovie_token', data.token);
+
+    // Sync history from backend
+    try {
+      const historyResponse = await fetch('/api/history', {
+        headers: {
+          'Authorization': `Bearer ${data.token}`
+        }
+      });
+      if (historyResponse.ok) {
+        const historyData = await historyResponse.json();
+        setWatchHistory(historyData);
+        localStorage.setItem(`history_${data.user.username}`, JSON.stringify(historyData));
+      }
+    } catch (err) {
+      console.error('Error loading history on Google login:', err);
+    }
   };
 
   const logout = () => {
@@ -281,7 +332,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, watchHistory, addToHistory, updateWatchProgress, clearHistory }}>
+    <AuthContext.Provider value={{ user, login, register, loginWithGoogle, logout, watchHistory, addToHistory, updateWatchProgress, clearHistory }}>
       {children}
     </AuthContext.Provider>
   );

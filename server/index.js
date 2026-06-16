@@ -41,7 +41,9 @@ const HistoryItemSchema = new mongoose.Schema({
 const UserSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true, lowercase: true, trim: true },
   email: { type: String, lowercase: true, trim: true },
-  password: { type: String, required: true },
+  password: { type: String }, // Optional for Google OAuth users
+  googleId: { type: String, unique: true, sparse: true }, // Sparse unique index allows null for normal users
+  avatar: { type: String },
   watchHistory: [HistoryItemSchema]
 });
 
@@ -110,7 +112,9 @@ app.post('/api/auth/register', async (req, res) => {
     res.status(201).json({
       token,
       user: {
-        username: newUser.username
+        username: newUser.username,
+        email: newUser.email,
+        avatar: newUser.avatar
       }
     });
   } catch (error) {
@@ -146,11 +150,99 @@ app.post('/api/auth/login', async (req, res) => {
     res.json({
       token,
       user: {
-        username: user.username
+        username: user.username,
+        email: user.email,
+        avatar: user.avatar
       }
     });
   } catch (error) {
     res.status(500).json({ error: 'Lỗi máy chủ khi đăng nhập: ' + error.message });
+  }
+});
+
+// Google OAuth2 Login / Register
+app.post('/api/auth/google', async (req, res) => {
+  try {
+    const { credential } = req.body;
+    if (!credential) {
+      return res.status(400).json({ error: 'Không tìm thấy thông tin xác thực Google.' });
+    }
+
+    // Verify token with Google's tokeninfo API (fetch is built-in in Node 20)
+    const googleVerifyUrl = `https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`;
+    const verifyResponse = await fetch(googleVerifyUrl);
+    
+    if (!verifyResponse.ok) {
+      const errData = await verifyResponse.json();
+      return res.status(400).json({ error: 'Mã xác thực Google không hợp lệ hoặc đã hết hạn: ' + (errData.error_description || '') });
+    }
+
+    const payload = await verifyResponse.json();
+    const { sub: googleId, email, name, picture } = payload;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Tài khoản Google này không cung cấp thông tin Email.' });
+    }
+
+    // 1. Check if user already linked with this googleId
+    let user = await User.findOne({ googleId });
+
+    if (!user) {
+      // 2. Check if user already registered with this email
+      user = await User.findOne({ email: email.toLowerCase().trim() });
+      
+      if (user) {
+        // Link Google account to existing user
+        user.googleId = googleId;
+        if (!user.avatar) {
+          user.avatar = picture;
+        }
+        await user.save();
+      } else {
+        // 3. Create a new user if not exists
+        // Clean up name to construct username. e.g. "Huy Ph" -> "huyph"
+        let baseUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
+        if (!baseUsername) baseUsername = 'user';
+
+        // Check if username is unique, append numbers if not
+        let finalUsername = baseUsername;
+        let suffix = 1;
+        while (await User.findOne({ username: finalUsername })) {
+          finalUsername = `${baseUsername}${suffix}`;
+          suffix += 1;
+        }
+
+        user = new User({
+          username: finalUsername,
+          email: email.toLowerCase().trim(),
+          googleId,
+          avatar: picture,
+          watchHistory: []
+        });
+
+        await user.save();
+      }
+    } else {
+      // Optional: Update avatar if it changed on Google
+      if (user.avatar !== picture) {
+        user.avatar = picture;
+        await user.save();
+      }
+    }
+
+    // Create app token
+    const token = jwt.sign({ id: user._id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
+
+    res.json({
+      token,
+      user: {
+        username: user.username,
+        email: user.email,
+        avatar: user.avatar
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Lỗi máy chủ khi đăng nhập Google: ' + error.message });
   }
 });
 

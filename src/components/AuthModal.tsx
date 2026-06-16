@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Loader, Mail, Lock, User, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -15,7 +15,58 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { login, register } = useAuth();
+  const { login, register, loginWithGoogle } = useAuth();
+
+  const handleGoogleCredentialResponse = async (response: any) => {
+    setError(null);
+    setLoading(true);
+    try {
+      await loginWithGoogle(response.credential);
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'Đăng nhập Google thất bại.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const initializeGoogleSignIn = () => {
+      const google = (window as any).google;
+      if (google && google.accounts) {
+        google.accounts.id.initialize({
+          client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || '142646698625-vke0c01vbfp9f4k0712s3c8n3clc9fca.apps.googleusercontent.com',
+          callback: handleGoogleCredentialResponse,
+        });
+
+        const btnContainer = document.getElementById("google-signin-btn");
+        if (btnContainer) {
+          google.accounts.id.renderButton(btnContainer, {
+            theme: "dark",
+            size: "large",
+            width: btnContainer.clientWidth || 320,
+            text: "signin_with",
+            shape: "rectangular"
+          });
+        }
+
+        // Trigger One Tap
+        google.accounts.id.prompt();
+      }
+    };
+
+    const timer = setInterval(() => {
+      const google = (window as any).google;
+      if (google && google.accounts) {
+        initializeGoogleSignIn();
+        clearInterval(timer);
+      }
+    }, 100);
+
+    return () => clearInterval(timer);
+  }, [isOpen, isRegister]);
 
   if (!isOpen) return null;
 
@@ -281,27 +332,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           </div>
 
           {/* Social Logins */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-4 w-full items-center justify-center">
+            {/* Google Sign-In Container */}
+            <div id="google-signin-btn" className="w-full flex justify-center h-[44px]"></div>
+            
             <button 
               type="button"
-              className="flex items-center justify-center gap-3 bg-white/5 border border-white/10 py-3 rounded-lg hover:bg-white/10 transition-all hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
-            >
-              <svg className="w-5 h-5" viewBox="0 0 24 24">
-                <path d="M12 5.04c1.8 0 3.14.77 3.84 1.45l2.87-2.87C16.96 1.96 14.71 1 12 1 7.22 1 3.22 3.86 1.5 8l3.43 2.67C5.75 7.42 8.63 5.04 12 5.04z" fill="#EA4335"></path>
-                <path d="M23.49 12.27c0-.84-.07-1.64-.21-2.42H12v4.58h6.45c-.28 1.48-1.12 2.74-2.38 3.58l3.7 2.87c2.16-2 3.72-4.94 3.72-8.61z" fill="#4285F4"></path>
-                <path d="M5.13 14.67C4.88 13.92 4.75 13.12 4.75 12.3c0-.82.13-1.62.38-2.37L1.7 7.26C.62 9.3 0 11.6 0 14c0 2.4.62 4.7 1.7 6.74l3.43-2.07z" fill="#FBBC05"></path>
-                <path d="M12 23c2.7 0 4.96-.89 6.62-2.42l-3.7-2.87c-.92.62-2.1.98-2.92.98-3.37 0-6.25-2.38-7.07-5.63L1.5 15.13C3.22 19.27 7.22 23 12 23z" fill="#34A853"></path>
-              </svg>
-              <span className="text-xs font-semibold text-on-surface">Google</span>
-            </button>
-            <button 
-              type="button"
-              className="flex items-center justify-center gap-3 bg-white/5 border border-white/10 py-3 rounded-lg hover:bg-white/10 transition-all hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
+              className="w-full flex items-center justify-center gap-3 bg-white/5 border border-white/10 py-3.5 rounded-lg hover:bg-white/10 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
             >
               <svg className="w-5 h-5 fill-current text-white" viewBox="0 0 24 24">
                 <path d="M17.05 20.28c-.96.95-2.21 1.72-3.72 1.72-1.54 0-2.39-.92-4.01-.92-1.65 0-2.61.91-4.01.91-1.45 0-2.87-.86-4.05-2.22-2.41-2.76-2.41-7.23 0-9.98 1.18-1.35 2.6-2.21 4.05-2.21 1.41 0 2.36.91 4.01.91 1.62 0 2.48-.91 4.01-.91 1.25 0 2.49.65 3.39 1.58-2.83 1.43-2.38 5.63.43 7.02-.63 1.58-1.57 3.12-2.1 4.1zM12.03 7.25c-.02-2.23 1.83-4.09 4.01-4.13.04 2.23-1.83 4.11-4.01 4.13z"></path>
               </svg>
-              <span className="text-xs font-semibold text-on-surface">Apple</span>
+              <span className="text-xs font-semibold text-on-surface">Đăng nhập với Apple (Bản dùng thử)</span>
             </button>
           </div>
 
