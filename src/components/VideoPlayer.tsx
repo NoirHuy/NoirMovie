@@ -89,6 +89,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         if (!video) return;
 
         let hls: Hls | null = null;
+        let networkRetryCount = 0;
 
         const initPlayer = () => {
             if (Hls.isSupported()) {
@@ -119,8 +120,15 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                     if (data.fatal) {
                         switch (data.type) {
                             case Hls.ErrorTypes.NETWORK_ERROR:
-                                console.error("fatal network error, trying to recover");
-                                hls?.startLoad();
+                                if (networkRetryCount < 2) {
+                                    networkRetryCount += 1;
+                                    console.warn(`Fatal HLS network error, trying to recover (retry ${networkRetryCount}/2)...`);
+                                    hls?.startLoad();
+                                } else {
+                                    console.error("HLS manifest network load failed 2 times. Automatically falling back to backup Embed iframe.");
+                                    hls?.destroy();
+                                    setUseIframe(true);
+                                }
                                 break;
                             case Hls.ErrorTypes.MEDIA_ERROR:
                                 console.error("fatal media error, trying to recover");
