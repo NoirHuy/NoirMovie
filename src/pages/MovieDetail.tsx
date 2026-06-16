@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { ChevronDown } from 'lucide-react';
 import { Hero } from '../components/Hero';
 import { VideoPlayer } from '../components/VideoPlayer';
 import { EpisodeList } from '../components/EpisodeList';
@@ -185,16 +186,20 @@ export const MovieDetail: React.FC = () => {
 
     if (loading) {
         return (
-            <div className="container" style={{ paddingTop: '2rem', textAlign: 'center' }}>
-                <h2 className="text-xl text-muted">Đang tải thông tin phim...</h2>
+            <div className="min-h-screen bg-background flex items-center justify-center">
+                <h2 className="text-xl text-on-surface-variant/75 font-semibold font-headline animate-pulse">
+                    Đang tải thông tin phim...
+                </h2>
             </div>
         );
     }
 
     if (error || !movieData || !movie) {
         return (
-            <div className="container" style={{ paddingTop: '2rem', textAlign: 'center' }}>
-                <h2 className="text-xl" style={{ color: 'var(--accent-primary)' }}>{error || 'Đã có lỗi xảy ra'}</h2>
+            <div className="min-h-screen bg-background flex items-center justify-center p-6 text-center">
+                <h2 className="text-xl font-bold font-headline text-primary">
+                    {error || 'Đã có lỗi xảy ra'}
+                </h2>
             </div>
         );
     }
@@ -238,68 +243,160 @@ export const MovieDetail: React.FC = () => {
     };
 
     return (
-        <>
+        <div className="min-h-screen bg-background">
             <Hero
                 movie={movie}
                 imageDomain={imageDomain}
                 onPlayClick={handlePlayClick}
             />
 
-            <div className="container app-grid">
-                <div className="player-section" ref={playerRef}>
-                    {currentEpisode ? (
-                        <VideoPlayer
-                            episode={currentEpisode}
-                            posterUrl={movie.poster_url?.startsWith('http') ? movie.poster_url : `${imageDomain}/uploads/movies/${movie.poster_url || movie.thumb_url}`}
-                            initialTime={initialTime}
-                            onTimeUpdate={handleTimeUpdate}
-                            onPause={handlePause}
-                        />
-                    ) : (
-                        <div className="player-placeholder glass-panel">
-                            <div className="placeholder-content">
-                                <h2>{episodes.length > 0 ? 'Chưa chọn tập phim' : 'Phim đang cập nhật'}</h2>
-                                <p>{episodes.length > 0 ? 'Vui lòng chọn một tập từ danh sách hoặc nhấn "Xem Phim"' : 'Hiện chưa có tập phim nào cho bộ phim này.'}</p>
-                                {episodes.length > 0 && (
-                                    <button className="play-btn mt-4" onClick={handlePlayClick}>
-                                        Xem Tập 1
-                                    </button>
-                                )}
+            <main className="pt-8 pb-20 max-w-[1920px] mx-auto px-6 md:px-container-desktop">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    
+                    {/* Left Column: Player and Details */}
+                    <div className="lg:col-span-8 space-y-6" ref={playerRef}>
+                        {currentEpisode ? (
+                            <VideoPlayer
+                                episode={currentEpisode}
+                                posterUrl={movie.poster_url?.startsWith('http') ? movie.poster_url : `${imageDomain}/uploads/movies/${movie.poster_url || movie.thumb_url}`}
+                                initialTime={initialTime}
+                                onTimeUpdate={handleTimeUpdate}
+                                onPause={handlePause}
+                            />
+                        ) : (
+                            <div className="aspect-video bg-surface-container rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center border border-white/5 p-6">
+                                <div className="text-center max-w-md">
+                                    <h2 className="font-headline text-xl font-bold text-white mb-2">
+                                        {episodes.length > 0 ? 'Chưa chọn tập phim' : 'Phim đang cập nhật'}
+                                    </h2>
+                                    <p className="text-sm text-on-surface-variant/75 mb-6">
+                                        {episodes.length > 0 ? 'Vui lòng chọn một tập từ danh sách hoặc nhấn "Xem Phim"' : 'Hiện chưa có tập phim nào cho bộ phim này.'}
+                                    </p>
+                                    {episodes.length > 0 && (
+                                        <button 
+                                            className="bg-primary hover:bg-primary/95 text-white font-bold px-6 py-2.5 rounded-full shadow-[0_0_15px_rgba(255,84,81,0.3)] active:scale-95 transition-all cursor-pointer"
+                                            onClick={handlePlayClick}
+                                        >
+                                            Xem Tập 1
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Current playing episode header */}
+                        {currentEpisode && (
+                            <div className="p-5 rounded-2xl glass-panel">
+                                <h3 className="text-lg font-bold text-white">Đang phát: Tập {currentEpisode.name}</h3>
+                                <p className="text-xs text-on-surface-variant/75 mt-1">{currentEpisode.filename}</p>
+                            </div>
+                        )}
+
+                        {/* Movie Details Info Box */}
+                        <div className="glass-panel p-6 md:p-8 rounded-2xl space-y-6">
+                            <div>
+                                <h1 className="font-headline text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-3 tracking-tight">
+                                    {movie.name}
+                                </h1>
+                                <div className="flex flex-wrap items-center gap-4 text-xs md:text-sm text-on-surface-variant/80 font-medium">
+                                    {movie.tmdb?.vote_average && (
+                                        <span className="flex items-center gap-1 text-primary font-bold bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/20">
+                                            ★ {movie.tmdb.vote_average.toFixed(1)}
+                                        </span>
+                                    )}
+                                    {movie.year && <span>{movie.year}</span>}
+                                    {movie.time && <span>{movie.time}</span>}
+                                    {movie.episode_current && (
+                                        <span className="bg-surface-container px-2 py-0.5 rounded border border-white/5 uppercase tracking-widest text-[10px] font-bold">
+                                            {movie.episode_current}
+                                        </span>
+                                    )}
+                                    {movie.quality && (
+                                        <span className="bg-surface-container px-2 py-0.5 rounded border border-white/5 uppercase tracking-widest text-[10px] font-bold">
+                                            {movie.quality}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Synopsis */}
+                            {movie.content && (
+                                <div className="space-y-3">
+                                    <h3 className="font-headline text-lg font-bold text-white">Nội dung phim</h3>
+                                    <div 
+                                        className="text-sm md:text-base text-on-surface-variant leading-relaxed max-w-4xl"
+                                        dangerouslySetInnerHTML={{ __html: movie.content }}
+                                    />
+                                </div>
+                            )}
+
+                            {/* Metadata Details Grid */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pt-6 border-t border-white/5">
+                                <div className="space-y-1">
+                                    <span className="text-[10px] uppercase tracking-widest text-primary font-bold">Quốc gia</span>
+                                    <p className="text-white text-sm font-semibold">{movie.country?.map((c: any) => c.name).join(', ') || 'Đang cập nhật'}</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <span className="text-[10px] uppercase tracking-widest text-primary font-bold">Thể loại</span>
+                                    <p className="text-white text-sm font-semibold truncate" title={movie.category?.map((c: any) => c.name).join(', ')}>
+                                        {movie.category?.map((c: any) => c.name).join(', ') || 'Đang cập nhật'}
+                                    </p>
+                                </div>
+                                <div className="space-y-1">
+                                    <span className="text-[10px] uppercase tracking-widest text-primary font-bold">Đạo diễn</span>
+                                    <p className="text-white text-sm font-semibold">{movie.director?.join(', ') || 'Đang cập nhật'}</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <span className="text-[10px] uppercase tracking-widest text-primary font-bold">Diễn viên</span>
+                                    <p className="text-white text-sm font-semibold truncate" title={movie.actor?.join(', ')}>
+                                        {movie.actor?.join(', ') || 'Đang cập nhật'}
+                                    </p>
+                                </div>
                             </div>
                         </div>
-                    )}
+                    </div>
 
-                    {currentEpisode && (
-                        <div className="episode-info mt-4 glass-panel">
-                            <h3 className="text-xl font-semibold">Tập {currentEpisode.name}</h3>
-                            <p className="text-muted mt-2">{currentEpisode.filename}</p>
-                        </div>
-                    )}
-                </div>
+                    {/* Right Column: Server, Season & Episode Lists */}
+                    <div className="lg:col-span-4 space-y-6">
+                        
+                        {/* Server Selectors */}
+                        {validServers.length > 0 && (
+                            <div className="glass-panel p-5 rounded-2xl">
+                                <div className="flex items-center gap-2 mb-4">
+                                    <span className="text-primary font-bold">⚡</span>
+                                    <h4 className="font-headline text-sm md:text-base font-bold text-white">Chọn nguồn phát video</h4>
+                                </div>
 
-                <div className="sidebar-section">
-                    {validServers.length > 0 ? (
-                        <>
-                            {/* SEASON SELECTION UI */}
-                            {relatedSeasons.length > 1 && (
-                                <div className="season-selection mb-4" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', paddingBottom: '1rem', borderBottom: '1px solid var(--glass-border)' }}>
-                                    <div className="text-sm text-muted font-semibold">Chọn Phần / Season:</div>
+                                <div className="flex flex-wrap gap-2">
+                                    {validServers.map((server: any, index: number) => {
+                                        const isSelected = index === currentServerIndex;
+                                        return (
+                                            <button
+                                                key={index}
+                                                onClick={() => setCurrentServerIndex(index)}
+                                                className={`flex-1 min-w-[100px] py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer border active:scale-95 ${
+                                                    isSelected
+                                                        ? 'bg-primary border-primary text-white shadow-md'
+                                                        : 'bg-surface-container border-white/5 text-on-surface-variant hover:bg-primary/20 hover:border-primary/30 hover:text-white'
+                                                }`}
+                                            >
+                                                {server.server_name}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Season Dropdown */}
+                        {relatedSeasons.length > 1 && (
+                            <div className="glass-panel p-5 rounded-2xl flex flex-col gap-3">
+                                <label className="text-xs font-bold text-primary uppercase tracking-widest">Chọn phần / Season</label>
+                                <div className="relative">
                                     <select
                                         value={slug}
                                         onChange={(e) => navigate(`/phim/${e.target.value}`)}
-                                        style={{
-                                            padding: '0.5rem 2.5rem 0.5rem 1rem',
-                                            borderRadius: '6px',
-                                            fontSize: '0.9rem',
-                                            fontWeight: '600',
-                                            border: '1px solid var(--accent-primary)',
-                                            background: 'var(--bg-secondary)',
-                                            color: 'var(--text-primary)',
-                                            appearance: 'none',
-                                            cursor: 'pointer',
-                                            outline: 'none',
-                                            boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
-                                        }}
+                                        className="w-full bg-surface-container border border-white/5 rounded-xl px-4 py-2.5 text-sm outline-none text-on-surface focus:border-primary focus:ring-1 focus:ring-primary appearance-none cursor-pointer"
                                     >
                                         {relatedSeasons.map((season: any) => (
                                             <option key={season.slug} value={season.slug}>
@@ -307,50 +404,29 @@ export const MovieDetail: React.FC = () => {
                                             </option>
                                         ))}
                                     </select>
-                                </div>
-                            )}
-
-                            {/* SERVER SELECTION UI */}
-                            {validServers.length > 1 && (
-                                <div className="server-selection mb-4">
-                                    <div className="text-sm text-muted mb-2">Chọn Server / Lồng tiếng:</div>
-                                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                        {validServers.map((server: any, index: number) => (
-                                            <button
-                                                key={index}
-                                                onClick={() => setCurrentServerIndex(index)}
-                                                style={{
-                                                    padding: '0.4rem 0.8rem',
-                                                    borderRadius: '4px',
-                                                    fontSize: '0.875rem',
-                                                    fontWeight: '500',
-                                                    border: '1px solid var(--glass-border)',
-                                                    background: index === currentServerIndex ? 'var(--accent-primary)' : 'var(--bg-secondary)',
-                                                    color: index === currentServerIndex ? '#fff' : 'var(--text-secondary)',
-                                                    cursor: 'pointer',
-                                                    transition: 'all 0.2s ease',
-                                                }}
-                                            >
-                                                {server.server_name}
-                                            </button>
-                                        ))}
+                                    <div className="absolute right-4 top-3.5 pointer-events-none text-on-surface-variant">
+                                        <ChevronDown size={16} />
                                     </div>
                                 </div>
-                            )}
+                            </div>
+                        )}
 
+                        {/* Episode List */}
+                        {validServers.length > 0 ? (
                             <EpisodeList
                                 episodes={episodes}
                                 currentEpisodeSlug={currentEpisode?.slug || ''}
                                 onEpisodeSelect={handleEpisodeSelect}
                             />
-                        </>
-                    ) : (
-                        <div className="glass-panel" style={{ padding: '1.5rem', textAlign: 'center' }}>
-                            <h3 className="text-xl font-semibold" style={{ color: 'var(--text-muted)' }}>Trailer / Đang cập nhật</h3>
-                        </div>
-                    )}
+                        ) : (
+                            <div className="glass-panel p-6 rounded-2xl text-center">
+                                <h3 className="font-headline text-base font-bold text-on-surface-variant/75">Trailer / Đang cập nhật</h3>
+                            </div>
+                        )}
+
+                    </div>
                 </div>
-            </div>
-        </>
+            </main>
+        </div>
     );
 };

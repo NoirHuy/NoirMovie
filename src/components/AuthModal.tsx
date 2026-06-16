@@ -58,45 +58,49 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   };
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content glass-panel animate-fade-in">
-        <button className="modal-close icon-btn" onClick={onClose} disabled={loading}>
-          <X size={24} />
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+      {/* Modal Card */}
+      <div className="w-full max-w-md glass-panel p-8 rounded-2xl relative shadow-2xl animate-fade-in">
+        
+        {/* Close Button */}
+        <button 
+          className="absolute top-4 right-4 text-on-surface-variant hover:text-white transition-colors cursor-pointer disabled:opacity-50" 
+          onClick={onClose} 
+          disabled={loading}
+        >
+          <X size={20} />
         </button>
 
-        <h2 className="modal-title">
+        {/* Header */}
+        <h2 className="font-headline text-2xl font-bold text-white text-center mb-1">
           {isRegister ? 'Đăng Ký NoirMovie' : 'Đăng Nhập NoirMovie'}
         </h2>
-        <p className="modal-subtitle">
+        <p className="text-xs text-on-surface-variant/75 text-center mb-6 leading-relaxed">
           {isRegister 
             ? 'Đăng ký tài khoản để đồng bộ và lưu lịch sử xem phim.' 
             : 'Đăng nhập để xem lịch sử phim của bạn.'}
         </p>
 
+        {/* Error Alert */}
         {error && (
-          <div className="error-message" style={{
-            color: '#ef4444',
-            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-            padding: '10px 14px',
-            borderRadius: '6px',
-            marginBottom: '16px',
-            fontSize: '14px',
-            border: '1px solid rgba(239, 68, 68, 0.2)'
-          }}>
+          <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-sm px-4 py-2.5 rounded-xl mb-6 animate-pulse">
             {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="auth-form">
-          <div className="form-group">
-            <label htmlFor="username">Tên đăng nhập</label>
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="username" className="text-[10px] font-bold text-primary uppercase tracking-widest">
+              Tên đăng nhập
+            </label>
             <input
               type="text"
               id="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="Nhập tên đăng nhập"
-              className="auth-input"
+              className="w-full bg-surface-container border border-white/5 rounded-xl px-4 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-on-surface"
               autoFocus
               required
               minLength={3}
@@ -104,15 +108,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             />
           </div>
 
-          <div className="form-group">
-            <label htmlFor="password">Mật khẩu</label>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="password" className="text-[10px] font-bold text-primary uppercase tracking-widest">
+              Mật khẩu
+            </label>
             <input
               type="password"
               id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Nhập mật khẩu (tối thiểu 6 ký tự)"
-              className="auth-input"
+              className="w-full bg-surface-container border border-white/5 rounded-xl px-4 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-on-surface"
               required
               minLength={6}
               disabled={loading}
@@ -121,33 +127,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
           <button 
             type="submit" 
-            className="play-btn" 
-            style={{ width: '100%', justifyContent: 'center', gap: '8px' }}
+            className="w-full bg-primary text-white py-3 rounded-xl font-bold text-sm hover:bg-primary/95 transition-all shadow-[0_0_15px_rgba(255,84,81,0.4)] hover:shadow-[0_0_25px_rgba(255,84,81,0.6)] flex items-center justify-center gap-2 cursor-pointer mt-6 active:scale-95 disabled:opacity-50"
             disabled={loading}
           >
-            {loading && <Loader className="animate-spin" size={18} />}
-            {isRegister ? 'Đăng Ký' : 'Đăng Nhập'}
+            {loading && <Loader className="animate-spin" size={16} />}
+            <span>{isRegister ? 'ĐĂNG KÝ' : 'ĐĂNG NHẬP'}</span>
           </button>
         </form>
 
-        <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '14px', color: '#a3a3a3' }}>
-          {isRegister ? 'Đã có tài khoản?' : 'Chưa có tài khoản?'} {' '}
+        {/* Toggle Mode */}
+        <div className="mt-6 text-center text-sm text-on-surface-variant/70">
+          {isRegister ? 'Đã có tài khoản?' : 'Chưa có tài khoản?'}{' '}
           <button 
             onClick={handleSwitchMode}
-            style={{ 
-              color: '#3b82f6', 
-              background: 'none', 
-              border: 'none', 
-              cursor: 'pointer', 
-              fontWeight: 500,
-              textDecoration: 'underline',
-              padding: 0
-            }}
+            className="text-primary font-bold hover:underline cursor-pointer bg-transparent border-none p-0 focus:outline-none"
             disabled={loading}
           >
             {isRegister ? 'Đăng nhập ngay' : 'Đăng ký ngay'}
           </button>
         </div>
+
       </div>
     </div>
   );

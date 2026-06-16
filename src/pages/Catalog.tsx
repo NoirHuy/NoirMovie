@@ -65,40 +65,52 @@ export const Catalog: React.FC = () => {
         fetchData();
     }, [location.pathname, slug, keyword, page]);
 
-    return (
-        <div className="catalog-page">
-            {loading ? (
-                <div className="container" style={{ paddingTop: '2rem', textAlign: 'center' }}>
-                    <h2 className="text-xl text-muted">Đang tải...</h2>
-                </div>
-            ) : error ? (
-                <div className="container" style={{ paddingTop: '2rem', textAlign: 'center' }}>
-                    <h2 className="text-xl" style={{ color: 'var(--accent-primary)' }}>{error}</h2>
-                </div>
-            ) : (
-                <>
-                    <MovieGrid movies={movies} title={title} />
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-background flex items-center justify-center">
+                <h2 className="text-xl text-on-surface-variant/75 font-semibold font-headline animate-pulse">
+                    Đang tải danh sách phim...
+                </h2>
+            </div>
+        );
+    }
 
-                    {totalPages > 1 && (
-                        <div className="pagination-controls" style={{ display: 'flex', justifyContent: 'center', gap: '1rem', paddingBottom: '3rem' }}>
-                            <button
-                                disabled={page === 1}
-                                onClick={() => setPage(p => Math.max(1, p - 1))}
-                                style={{ padding: '0.5rem 1rem', background: 'var(--bg-tertiary)', borderRadius: '4px', cursor: page === 1 ? 'not-allowed' : 'pointer' }}
-                            >
-                                Trang trước
-                            </button>
-                            <span style={{ display: 'flex', alignItems: 'center' }}>Trang {page} / {totalPages}</span>
-                            <button
-                                disabled={page >= totalPages}
-                                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                                style={{ padding: '0.5rem 1rem', background: 'var(--bg-tertiary)', borderRadius: '4px', cursor: page >= totalPages ? 'not-allowed' : 'pointer' }}
-                            >
-                                Trang tiếp
-                            </button>
-                        </div>
-                    )}
-                </>
+    if (error) {
+        return (
+            <div className="min-h-screen bg-background flex items-center justify-center p-6 text-center">
+                <h2 className="text-xl font-bold font-headline text-primary">
+                    {error}
+                </h2>
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen bg-background pt-28 pb-12">
+            <MovieGrid movies={movies} title={title} />
+
+            {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-4 py-8">
+                    <button
+                        disabled={page === 1}
+                        onClick={() => setPage(p => Math.max(1, p - 1))}
+                        className="px-5 py-2.5 rounded-xl font-bold text-xs transition-all border active:scale-95 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed bg-surface-container border-white/5 text-on-surface-variant hover:bg-primary/20 hover:border-primary/30 hover:text-white"
+                    >
+                        Trang trước
+                    </button>
+                    
+                    <span className="text-sm font-semibold text-on-surface-variant">
+                        Trang {page} / {totalPages}
+                    </span>
+                    
+                    <button
+                        disabled={page >= totalPages}
+                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                        className="px-5 py-2.5 rounded-xl font-bold text-xs transition-all border active:scale-95 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed bg-surface-container border-white/5 text-on-surface-variant hover:bg-primary/20 hover:border-primary/30 hover:text-white"
+                    >
+                        Trang tiếp
+                    </button>
+                </div>
             )}
         </div>
     );

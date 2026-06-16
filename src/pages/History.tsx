@@ -25,74 +25,88 @@ export const History: React.FC = () => {
 
     if (!user) {
         return (
-            <div className="container" style={{ paddingTop: '4rem', textAlign: 'center' }}>
-                <h2 className="text-2xl font-bold mb-4">Lịch Sử Xem Phim</h2>
-                <p className="text-muted">Vui lòng đăng nhập để xem những bộ phim bạn đã theo dõi.</p>
+            <div className="min-h-screen bg-background pt-28 pb-20 flex items-center justify-center p-6 text-center">
+                <div className="max-w-md glass-panel p-8 rounded-2xl">
+                    <Clock size={40} className="text-primary mx-auto mb-4" />
+                    <h2 className="font-headline text-2xl font-bold text-white mb-2">Lịch Sử Xem Phim</h2>
+                    <p className="text-sm text-on-surface-variant/75">Vui lòng đăng nhập để xem những bộ phim bạn đã theo dõi.</p>
+                </div>
             </div>
         );
     }
 
     if (!watchHistory || watchHistory.length === 0) {
         return (
-            <div className="container" style={{ paddingTop: '4rem', textAlign: 'center' }}>
-                <Clock size={48} className="text-muted mx-auto mb-4" />
-                <h2 className="text-2xl font-bold mb-2">Lịch Sử Trống</h2>
-                <p className="text-muted">Bạn chưa xem bộ phim nào gần đây.</p>
+            <div className="min-h-screen bg-background pt-28 pb-20 flex items-center justify-center p-6 text-center">
+                <div className="max-w-md glass-panel p-8 rounded-2xl">
+                    <Clock size={40} className="text-on-surface-variant/50 mx-auto mb-4" />
+                    <h2 className="font-headline text-2xl font-bold text-white mb-2">Lịch Sử Trống</h2>
+                    <p className="text-sm text-on-surface-variant/75">Bạn chưa xem bộ phim nào gần đây.</p>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="history-page">
-            <div className="container" style={{ paddingTop: '2rem', paddingBottom: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+        <div className="min-h-screen bg-background pb-12 pt-28">
+            {/* Header */}
+            <div className="max-w-[1920px] mx-auto px-6 md:px-container-desktop mb-8">
+                <div className="flex items-center gap-3 mb-2">
                     <Clock size={28} className="text-primary" />
-                    <h2 className="text-2xl font-bold m-0">Phim Đã Xem</h2>
+                    <h2 className="font-headline text-2xl md:text-3xl font-bold text-white m-0">Lịch sử xem phim</h2>
                 </div>
-                <p className="text-muted">Lịch sử xem phim của tài khoản <strong>{user.username}</strong></p>
+                <p className="text-sm text-on-surface-variant/75">
+                    Lịch sử xem phim của tài khoản <strong>{user.username}</strong>
+                </p>
             </div>
 
-            <div className="container" style={{ paddingBottom: '4rem' }}>
-                <div className="movie-grid">
+            {/* List */}
+            <div className="max-w-[1920px] mx-auto px-6 md:px-container-desktop">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
                     {watchHistory.map((item) => (
-                        <Link to={`/phim/${item.slug}`} key={item._id} className="movie-card">
-                            <div className="movie-poster-wrapper">
+                        <Link 
+                            to={`/phim/${item.slug}`} 
+                            key={item._id} 
+                            className="group cursor-pointer block"
+                        >
+                            {/* Card Image Container */}
+                            <div className="aspect-[2/3] rounded-xl overflow-hidden mb-3 relative ring-1 ring-white/5 bg-surface-container transition-all duration-300 group-hover:scale-[1.03] group-hover:ring-primary/40 group-hover:shadow-[0_0_20px_rgba(255,84,81,0.2)]">
                                 <img
                                     src={item.thumb_url}
                                     alt={item.name}
-                                    className="movie-poster"
+                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                                     loading="lazy"
                                     onError={(e) => {
                                         (e.target as HTMLImageElement).src = 'https://via.placeholder.com/220x330?text=No+Image';
                                     }}
                                 />
-                                <div className="movie-overlay">
-                                    <div className="play-circle">
-                                        <Play fill="currentColor" size={24} />
+                                {/* Hover Play overlay */}
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                                    <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-white shadow-lg transform scale-90 group-hover:scale-100 transition-transform duration-300">
+                                        <Play fill="currentColor" size={20} className="ml-1" />
                                     </div>
                                 </div>
                             </div>
-                            <div className="movie-info">
-                                <h3 className="movie-title" title={item.name}>{item.name}</h3>
+
+                            {/* Card Details */}
+                            <div className="px-1">
+                                <h3 
+                                    className="text-sm font-bold text-white group-hover:text-primary transition-colors truncate" 
+                                    title={item.name}
+                                >
+                                    {item.name}
+                                </h3>
                                 
                                 {item.currentEpisodeSlug && (
-                                    <div style={{ 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        gap: '4px', 
-                                        fontSize: '0.8rem', 
-                                        color: 'var(--accent-primary)',
-                                        marginTop: '4px',
-                                        fontWeight: '500'
-                                    }}>
-                                        <RotateCcw size={12} />
+                                    <div className="flex items-center gap-1 text-[11px] text-primary mt-1 font-semibold">
+                                        <RotateCcw size={10} />
                                         <span>
                                             {formatEpisode(item.currentEpisodeSlug)} 
                                             {item.currentTime && item.currentTime > 0 ? ` (${formatTime(item.currentTime)})` : ''}
                                         </span>
                                     </div>
                                 )}
-                                <p className="movie-year" style={{ marginTop: '2px' }}>
+                                <p className="text-[11px] text-on-surface-variant/60 mt-0.5 font-medium">
                                     {item.year ? `${item.year}` : 'Đã xem gần đây'}
                                 </p>
                             </div>
