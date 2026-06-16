@@ -284,7 +284,7 @@ export const Header: React.FC = () => {
 
                 {/* Mobile Menu Drawer Overlay */}
                 {isMobileMenuOpen && (
-                    <div className="fixed inset-x-0 top-20 bottom-0 z-40 bg-[#09090b]/95 backdrop-blur-2xl border-t border-white/5 lg:hidden flex flex-col p-6 overflow-y-auto animate-[fadeInScale_0.3s_ease]">
+                    <div className="fixed inset-x-0 top-20 bottom-0 z-50 bg-[#09090b] border-t border-white/5 lg:hidden flex flex-col p-6 overflow-y-auto animate-[fadeInScale_0.3s_ease]">
                         
                         {/* Search bar inside drawer */}
                         <form onSubmit={handleSearch} className="relative w-full mb-8 flex items-center bg-surface-container rounded-full px-5 py-3.5 border border-white/10 group focus-within:border-primary transition-colors">
