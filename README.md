@@ -1,3 +1,15 @@
+---
+title: NoirMovie
+emoji: 🎥
+colorFrom: purple
+colorTo: indigo
+sdk: docker
+pinned: false
+license: mit
+short_description: Movie
+app_port: 7860
+---
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
