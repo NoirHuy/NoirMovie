@@ -297,6 +297,82 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         return () => document.removeEventListener('fullscreenchange', handleFsChange);
     }, []);
 
+    // Keyboard Shortcuts Navigation
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const activeEl = document.activeElement;
+            if (activeEl && (
+                activeEl.tagName === 'INPUT' || 
+                activeEl.tagName === 'TEXTAREA' || 
+                activeEl.hasAttribute('contenteditable')
+            )) {
+                return;
+            }
+
+            if (document.querySelector('.auth-modal-overlay')) {
+                return;
+            }
+
+            if (useIframe) return;
+
+            switch (e.key) {
+                case ' ': // Spacebar
+                    e.preventDefault();
+                    togglePlay();
+                    break;
+                case 'ArrowLeft': // Seek back 10s
+                    e.preventDefault();
+                    seekOffset(-10);
+                    break;
+                case 'ArrowRight': // Seek forward 10s
+                    e.preventDefault();
+                    seekOffset(10);
+                    break;
+                case 'ArrowUp': // Volume up
+                    e.preventDefault();
+                    setVolume(prev => {
+                        const nextVol = Math.min(prev + 0.1, 1);
+                        if (videoRef.current) {
+                            videoRef.current.volume = nextVol;
+                            videoRef.current.muted = false;
+                        }
+                        setIsMuted(false);
+                        return nextVol;
+                    });
+                    break;
+                case 'ArrowDown': // Volume down
+                    e.preventDefault();
+                    setVolume(prev => {
+                        const nextVol = Math.max(prev - 0.1, 0);
+                        if (videoRef.current) {
+                            videoRef.current.volume = nextVol;
+                            videoRef.current.muted = nextVol === 0;
+                        }
+                        setIsMuted(nextVol === 0);
+                        return nextVol;
+                    });
+                    break;
+                case 'm':
+                case 'M': // Toggle Mute
+                    e.preventDefault();
+                    toggleMute();
+                    break;
+                case 'f':
+                case 'F': // Toggle Fullscreen
+                    e.preventDefault();
+                    toggleFullscreen();
+                    break;
+                default:
+                    break;
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isPlaying, duration, useIframe, isMuted, volume, isFullscreen]);
+
     const togglePiP = async () => {
         if (!videoRef.current) return;
         try {
@@ -391,10 +467,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
                         {/* Custom Controls Overlay */}
                         <div 
-                            className={`absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent flex flex-col justify-end px-4 md:px-6 pb-4 md:pb-6 pt-10 z-20 transition-opacity duration-300 ${
+                            onClick={togglePlay}
+                            className={`absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent flex flex-col justify-end px-4 md:px-6 pb-4 md:pb-6 pt-10 z-20 transition-opacity duration-300 cursor-pointer ${
                                 showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
                             }`}
                         >
+                            {/* Prevent clicks on the control bar itself from toggling play/pause */}
+                            <div className="w-full flex flex-col justify-end cursor-default" onClick={(e) => e.stopPropagation()}>
                             {/* Seekbar Time indicators (displayed ABOVE seekbar) */}
                             <div className="flex justify-between items-center text-xs font-medium text-white/95 px-1 mb-2">
                                 <span>{formatTime(currentTime)}</span>
@@ -560,6 +639,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                                 </div>
                             </div>
                         </div>
+                    </div>
                     </>
                 )}
 

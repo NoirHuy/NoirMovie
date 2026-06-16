@@ -80,7 +80,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#09090b]/80 backdrop-blur-md p-container-margin-mobile md:p-0 overflow-y-auto">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#09090b]/80 backdrop-blur-md p-container-margin-mobile md:p-0 overflow-y-auto auth-modal-overlay">
       
       {/* Background Image Layer (Desaturated Hero style) */}
       <div className="fixed inset-0 z-0 opacity-30 pointer-events-none">
