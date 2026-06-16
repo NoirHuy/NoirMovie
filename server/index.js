@@ -7,9 +7,86 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dns from 'dns';
+import { promisify } from 'util';
+import https from 'https';
+import http from 'http';
+import { URL } from 'url';
 
 dns.setDefaultResultOrder('ipv4first');
 dotenv.config();
+
+const resolve4Async = promisify(dns.resolve4);
+const resolve6Async = promisify(dns.resolve6);
+
+// Custom http request helper to bypass native fetch bugs and support options
+function httpRequest(urlStr, options = {}) {
+  return new Promise((resolve, reject) => {
+    try {
+      const parsedUrl = new URL(urlStr);
+      const isHttps = parsedUrl.protocol === 'https:';
+      
+      const requestOptions = {
+        method: options.method || 'GET',
+        headers: options.headers || {}
+      };
+
+      requestOptions.timeout = options.timeout || 10000;
+      const client = isHttps ? https : http;
+      
+      if (options.body) {
+        let bodyData = options.body;
+        if (typeof bodyData === 'object') {
+          bodyData = JSON.stringify(bodyData);
+          requestOptions.headers['Content-Type'] = requestOptions.headers['Content-Type'] || 'application/json';
+        }
+        requestOptions.headers['Content-Length'] = Buffer.byteLength(bodyData);
+        
+        const req = client.request(urlStr, requestOptions, (res) => {
+          let data = '';
+          res.on('data', (chunk) => data += chunk);
+          res.on('end', () => {
+            resolve({
+              ok: res.statusCode >= 200 && res.statusCode < 300,
+              status: res.statusCode,
+              json: async () => JSON.parse(data),
+              text: async () => data
+            });
+          });
+        });
+
+        req.on('error', (err) => reject(err));
+        req.on('timeout', () => {
+          req.destroy();
+          reject(new Error('Request timed out'));
+        });
+        req.write(bodyData);
+        req.end();
+      } else {
+        const req = client.request(urlStr, requestOptions, (res) => {
+          let data = '';
+          res.on('data', (chunk) => data += chunk);
+          res.on('end', () => {
+            resolve({
+              ok: res.statusCode >= 200 && res.statusCode < 300,
+              status: res.statusCode,
+              json: async () => JSON.parse(data),
+              text: async () => data
+            });
+          });
+        });
+
+        req.on('error', (err) => reject(err));
+        req.on('timeout', () => {
+          req.destroy();
+          reject(new Error('Request timed out'));
+        });
+        req.end();
+      }
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -188,9 +265,9 @@ app.post('/api/auth/google', async (req, res) => {
       return res.status(400).json({ error: 'Không tìm thấy thông tin xác thực Google.' });
     }
 
-    // Verify token with Google's tokeninfo API (fetch is built-in in Node 20)
+    // Verify token with Google's tokeninfo API
     const googleVerifyUrl = `https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`;
-    const verifyResponse = await fetch(googleVerifyUrl);
+    const verifyResponse = await httpRequest(googleVerifyUrl);
     
     if (!verifyResponse.ok) {
       const errData = await verifyResponse.json();
@@ -319,6 +396,74 @@ app.post('/api/auth/google', async (req, res) => {
   }
 });
 
+// Diagnostic Auth Endpoint
+app.get('/api/auth/diagnostic', async (req, res) => {
+  const report = {
+    time: new Date().toISOString(),
+    env: {
+      NODE_ENV: process.env.NODE_ENV,
+      PORT: process.env.PORT,
+      HTTP_PROXY: process.env.HTTP_PROXY ? 'defined' : 'undefined',
+      HTTPS_PROXY: process.env.HTTPS_PROXY ? 'defined' : 'undefined',
+      http_proxy: process.env.http_proxy ? 'defined' : 'undefined',
+      https_proxy: process.env.https_proxy ? 'defined' : 'undefined',
+    },
+    dns: {},
+    fetchGoogle: null,
+    fetchFacebook: null,
+    httpGoogle: null,
+    httpFacebook: null
+  };
+
+  // 1. Test DNS
+  try {
+    report.dns.google_ipv4 = await resolve4Async('oauth2.googleapis.com').catch(e => e.message);
+    report.dns.google_ipv6 = await resolve6Async('oauth2.googleapis.com').catch(e => e.message);
+  } catch (e) {
+    report.dns.google_err = e.message;
+  }
+  try {
+    report.dns.facebook_ipv4 = await resolve4Async('graph.facebook.com').catch(e => e.message);
+    report.dns.facebook_ipv6 = await resolve6Async('graph.facebook.com').catch(e => e.message);
+  } catch (e) {
+    report.dns.facebook_err = e.message;
+  }
+
+  // 2. Test native fetch
+  try {
+    const t0 = Date.now();
+    const resGoogle = await fetch('https://oauth2.googleapis.com/tokeninfo?id_token=test', { signal: AbortSignal.timeout(3000) });
+    report.fetchGoogle = { status: resGoogle.status, ok: resGoogle.ok, timeMs: Date.now() - t0 };
+  } catch (e) {
+    report.fetchGoogle = { error: e.message, code: e.code };
+  }
+  try {
+    const t0 = Date.now();
+    const resFB = await fetch('https://graph.facebook.com/me?fields=id&access_token=test', { signal: AbortSignal.timeout(3000) });
+    report.fetchFacebook = { status: resFB.status, ok: resFB.ok, timeMs: Date.now() - t0 };
+  } catch (e) {
+    report.fetchFacebook = { error: e.message, code: e.code };
+  }
+
+  // 3. Test httpRequest
+  try {
+    const t0 = Date.now();
+    const resGoogle = await httpRequest('https://oauth2.googleapis.com/tokeninfo?id_token=test');
+    report.httpGoogle = { status: resGoogle.status, ok: resGoogle.ok, timeMs: Date.now() - t0 };
+  } catch (e) {
+    report.httpGoogle = { error: e.message, code: e.code };
+  }
+  try {
+    const t0 = Date.now();
+    const resFB = await httpRequest('https://graph.facebook.com/me?fields=id&access_token=test');
+    report.httpFacebook = { status: resFB.status, ok: resFB.ok, timeMs: Date.now() - t0 };
+  } catch (e) {
+    report.httpFacebook = { error: e.message, code: e.code };
+  }
+
+  res.json(report);
+});
+
 // Facebook OAuth2 Login / Register
 app.post('/api/auth/facebook', async (req, res) => {
   try {
@@ -329,7 +474,7 @@ app.post('/api/auth/facebook', async (req, res) => {
 
     // Verify token with Facebook Graph API
     const fbVerifyUrl = `https://graph.facebook.com/me?fields=id,name,email,picture.type(large),first_name,last_name,locale&access_token=${accessToken}`;
-    const verifyResponse = await fetch(fbVerifyUrl, {
+    const verifyResponse = await httpRequest(fbVerifyUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       }
