@@ -281,124 +281,124 @@ export const Header: React.FC = () => {
                         </button>
                     </div>
                 </div>
+            </header>
 
-                {/* Mobile Menu Drawer Overlay */}
-                {isMobileMenuOpen && (
-                    <div className="fixed inset-x-0 top-20 bottom-0 z-50 bg-[#09090b] border-t border-white/5 lg:hidden flex flex-col p-6 overflow-y-auto animate-[fadeInScale_0.3s_ease]">
-                        
-                        {/* Search bar inside drawer */}
-                        <form onSubmit={handleSearch} className="relative w-full mb-8 flex items-center bg-surface-container rounded-full px-5 py-3.5 border border-white/10 group focus-within:border-primary transition-colors">
-                            <input
-                                type="text"
-                                placeholder="Tìm kiếm phim..."
-                                className="bg-transparent border-none outline-none text-sm placeholder:text-on-surface-variant/50 w-full text-on-surface focus:ring-0 p-0"
-                                value={keyword}
-                                onChange={(e) => setKeyword(e.target.value)}
-                            />
-                            <button type="submit" className="text-on-surface-variant hover:text-primary transition-colors cursor-pointer">
-                                <Search size={20} />
-                            </button>
-                        </form>
+            {/* Mobile Menu Drawer Overlay - Rendered outside header at root level with z-[9999] */}
+            {isMobileMenuOpen && (
+                <div className="fixed inset-x-0 top-20 bottom-0 z-[9999] bg-[#09090b] border-t border-white/5 lg:hidden flex flex-col p-6 overflow-y-auto animate-[fadeInScale_0.3s_ease]">
+                    
+                    {/* Search bar inside drawer */}
+                    <form onSubmit={handleSearch} className="relative w-full mb-8 flex items-center bg-surface-container rounded-full px-5 py-3.5 border border-white/10 group focus-within:border-primary transition-colors">
+                        <input
+                            type="text"
+                            placeholder="Tìm kiếm phim..."
+                            className="bg-transparent border-none outline-none text-sm placeholder:text-on-surface-variant/50 w-full text-on-surface focus:ring-0 p-0"
+                            value={keyword}
+                            onChange={(e) => setKeyword(e.target.value)}
+                        />
+                        <button type="submit" className="text-on-surface-variant hover:text-primary transition-colors cursor-pointer">
+                            <Search size={20} />
+                        </button>
+                    </form>
 
-                        {/* Mobile Links Stack */}
-                        <div className="flex flex-col gap-6">
+                    {/* Mobile Links Stack */}
+                    <div className="flex flex-col gap-6">
+                        <Link 
+                            to="/" 
+                            className="text-base font-bold text-on-surface hover:text-primary transition-colors flex items-center gap-3 border-b border-white/5 pb-3"
+                            onClick={() => setIsMobileMenuOpen(false)}
+                        >
+                            Trang chủ
+                        </Link>
+
+                        {user ? (
                             <Link 
-                                to="/" 
+                                to="/lich-su" 
                                 className="text-base font-bold text-on-surface hover:text-primary transition-colors flex items-center gap-3 border-b border-white/5 pb-3"
                                 onClick={() => setIsMobileMenuOpen(false)}
                             >
-                                Trang chủ
+                                Lịch sử xem phim
                             </Link>
+                        ) : (
+                            <button 
+                                onClick={() => {
+                                    setIsMobileMenuOpen(false);
+                                    setIsAuthModalOpen(true);
+                                }}
+                                className="text-base font-bold text-left text-on-surface hover:text-primary transition-colors flex items-center gap-3 bg-transparent border-none outline-none cursor-pointer border-b border-white/5 pb-3"
+                            >
+                                Đăng nhập tài khoản
+                            </button>
+                        )}
 
-                            {user ? (
-                                <Link 
-                                    to="/lich-su" 
-                                    className="text-base font-bold text-on-surface hover:text-primary transition-colors flex items-center gap-3 border-b border-white/5 pb-3"
-                                    onClick={() => setIsMobileMenuOpen(false)}
-                                >
-                                    Lịch sử xem phim
-                                </Link>
-                            ) : (
-                                <button 
-                                    onClick={() => {
-                                        setIsMobileMenuOpen(false);
-                                        setIsAuthModalOpen(true);
-                                    }}
-                                    className="text-base font-bold text-left text-on-surface hover:text-primary transition-colors flex items-center gap-3 bg-transparent border-none outline-none cursor-pointer border-b border-white/5 pb-3"
-                                >
-                                    Đăng nhập tài khoản
-                                </button>
-                            )}
-
-                            {/* Section: Phim Bộ */}
-                            <div className="space-y-3">
-                                <div className="text-xs font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-1.5 opacity-55">
-                                    <Library size={12} /> Phim Bộ
-                                </div>
-                                <div className="flex flex-col gap-2 pl-3">
-                                    <Link to="/danh-sach/phim-bo" className="text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors" onClick={() => setIsMobileMenuOpen(false)}>Tất cả phim bộ</Link>
-                                    <Link to="/danh-sach/phim-dang-chieu" className="text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors" onClick={() => setIsMobileMenuOpen(false)}>Phim đang chiếu</Link>
-                                    <Link to="/danh-sach/phim-hoan-thanh" className="text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors" onClick={() => setIsMobileMenuOpen(false)}>Phim đã hoàn thành</Link>
-                                </div>
+                        {/* Section: Phim Bộ */}
+                        <div className="space-y-3">
+                            <div className="text-xs font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-1.5 opacity-55">
+                                <Library size={12} /> Phim Bộ
                             </div>
-
-                            {/* Section: Thể Loại */}
-                            <div className="space-y-3 pt-3 border-t border-white/5">
-                                <div className="text-xs font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-1.5 opacity-55">
-                                    <Library size={12} /> Thể Loại
-                                </div>
-                                <div className="grid grid-cols-2 gap-2.5 pl-3">
-                                    {categories.slice(0, 16).map((c: any) => (
-                                        <Link 
-                                            key={c._id} 
-                                            to={`/the-loai/${c.slug}`} 
-                                            className="text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors truncate"
-                                            onClick={() => setIsMobileMenuOpen(false)}
-                                        >
-                                            {c.name}
-                                        </Link>
-                                    ))}
-                                </div>
+                            <div className="flex flex-col gap-2 pl-3">
+                                <Link to="/danh-sach/phim-bo" className="text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors" onClick={() => setIsMobileMenuOpen(false)}>Tất cả phim bộ</Link>
+                                <Link to="/danh-sach/phim-dang-chieu" className="text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors" onClick={() => setIsMobileMenuOpen(false)}>Phim đang chiếu</Link>
+                                <Link to="/danh-sach/phim-hoan-thanh" className="text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors" onClick={() => setIsMobileMenuOpen(false)}>Phim đã hoàn thành</Link>
                             </div>
-
-                            {/* Section: Quốc Gia */}
-                            <div className="space-y-3 pt-3 border-t border-white/5">
-                                <div className="text-xs font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-1.5 opacity-55">
-                                    <Globe size={12} /> Quốc Gia
-                                </div>
-                                <div className="grid grid-cols-2 gap-2.5 pl-3">
-                                    {countries.slice(0, 16).map((c: any) => (
-                                        <Link 
-                                            key={c._id} 
-                                            to={`/quoc-gia/${c.slug}`} 
-                                            className="text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors truncate"
-                                            onClick={() => setIsMobileMenuOpen(false)}
-                                        >
-                                            {c.name}
-                                        </Link>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Active User details & logout */}
-                            {user && (
-                                <div className="pt-6 border-t border-white/5 flex flex-col gap-4">
-                                    <div className="px-4 py-3 bg-white/5 rounded-xl border border-white/5">
-                                        <small className="text-[10px] uppercase tracking-wider text-on-surface-variant/40 font-bold block">Đang đăng nhập</small>
-                                        <span className="font-bold text-sm text-primary truncate block mt-0.5">{user.username}</span>
-                                    </div>
-                                    <button 
-                                        onClick={handleLogout}
-                                        className="w-full bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 py-3.5 rounded-xl font-bold text-sm transition-colors cursor-pointer text-center"
-                                    >
-                                        Đăng Xuất
-                                    </button>
-                                </div>
-                            )}
                         </div>
+
+                        {/* Section: Thể Loại */}
+                        <div className="space-y-3 pt-3 border-t border-white/5">
+                            <div className="text-xs font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-1.5 opacity-55">
+                                <Library size={12} /> Thể Loại
+                            </div>
+                            <div className="grid grid-cols-2 gap-2.5 pl-3">
+                                {categories.slice(0, 16).map((c: any) => (
+                                    <Link 
+                                        key={c._id} 
+                                        to={`/the-loai/${c.slug}`} 
+                                        className="text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors truncate"
+                                        onClick={() => setIsMobileMenuOpen(false)}
+                                    >
+                                        {c.name}
+                                    </Link>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Section: Quốc Gia */}
+                        <div className="space-y-3 pt-3 border-t border-white/5">
+                            <div className="text-xs font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-1.5 opacity-55">
+                                <Globe size={12} /> Quốc Gia
+                            </div>
+                            <div className="grid grid-cols-2 gap-2.5 pl-3">
+                                {countries.slice(0, 16).map((c: any) => (
+                                    <Link 
+                                        key={c._id} 
+                                        to={`/quoc-gia/${c.slug}`} 
+                                        className="text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors truncate"
+                                        onClick={() => setIsMobileMenuOpen(false)}
+                                    >
+                                        {c.name}
+                                    </Link>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Active User details & logout */}
+                        {user && (
+                            <div className="pt-6 border-t border-white/5 flex flex-col gap-4">
+                                <div className="px-4 py-3 bg-white/5 rounded-xl border border-white/5">
+                                    <small className="text-[10px] uppercase tracking-wider text-on-surface-variant/40 font-bold block">Đang đăng nhập</small>
+                                    <span className="font-bold text-sm text-primary truncate block mt-0.5">{user.username}</span>
+                                </div>
+                                <button 
+                                    onClick={handleLogout}
+                                    className="w-full bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 py-3.5 rounded-xl font-bold text-sm transition-colors cursor-pointer text-center"
+                                >
+                                    Đăng Xuất
+                                </button>
+                            </div>
+                        )}
                     </div>
-                )}
-            </header>
+                </div>
+            )}
 
             <AuthModal
                 isOpen={isAuthModalOpen}
