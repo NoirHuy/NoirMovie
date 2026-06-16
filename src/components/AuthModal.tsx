@@ -15,6 +15,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [googleClientId, setGoogleClientId] = useState<string>('');
   const { login, register, loginWithGoogle } = useAuth();
 
   const handleGoogleCredentialResponse = async (response: any) => {
@@ -32,12 +33,30 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
   useEffect(() => {
     if (!isOpen) return;
+    const fetchConfig = async () => {
+      try {
+        const response = await fetch('/api/config/google');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.clientId) {
+            setGoogleClientId(data.clientId);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch Google Client ID from backend:', err);
+      }
+    };
+    fetchConfig();
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !googleClientId) return;
 
     const initializeGoogleSignIn = () => {
       const google = (window as any).google;
       if (google && google.accounts) {
         google.accounts.id.initialize({
-          client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || '142646698625-vke0c01vbfp9f4k0712s3c8n3clc9fca.apps.googleusercontent.com',
+          client_id: googleClientId,
           callback: handleGoogleCredentialResponse,
         });
 
@@ -66,7 +85,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     }, 100);
 
     return () => clearInterval(timer);
-  }, [isOpen, isRegister]);
+  }, [isOpen, isRegister, googleClientId]);
 
   if (!isOpen) return null;
 

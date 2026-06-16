@@ -160,6 +160,11 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// Get public configuration (Google Client ID)
+app.get('/api/config/google', (req, res) => {
+  res.json({ clientId: process.env.GOOGLE_CLIENT_ID || '' });
+});
+
 // Google OAuth2 Login / Register
 app.post('/api/auth/google', async (req, res) => {
   try {
