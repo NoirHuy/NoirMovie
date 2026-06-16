@@ -1,27 +1,32 @@
-# Step 1: Build the React app
-FROM node:20-alpine AS build
-
-WORKDIR /app
-
-# Copy package files and install dependencies
+# Step 1: Build Frontend
+FROM node:20-alpine AS build-frontend
+WORKDIR /app/frontend
 COPY package*.json ./
 RUN npm install
-
-# Copy source code and build the application
 COPY . .
 RUN npm run build
 
-# Step 2: Serve the app using Nginx
-FROM nginx:alpine
+# Step 2: Build & Run Backend
+FROM node:20-alpine
+WORKDIR /app
 
-# Copy custom nginx configuration
-COPY nginx.conf /etc/nginx/nginx.conf
+# Copy server package files and install dependencies
+COPY server/package*.json ./server/
+RUN cd server && npm install
 
-# Copy build artifacts to nginx public folder from build stage
-COPY --from=build /app/dist /usr/share/nginx/html
+# Copy server source code
+COPY server/ ./server/
 
-# Expose port 7860 (Hugging Face Spaces default port)
+# Copy built frontend assets to server dist folder
+COPY --from=build-frontend /app/frontend/dist ./server/dist
+
+# Expose port 7860 for Hugging Face Spaces
 EXPOSE 7860
 
-# Start nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Set environment variables
+ENV NODE_ENV=production
+ENV PORT=7860
+
+# Run the backend server
+WORKDIR /app/server
+CMD ["node", "index.js"]

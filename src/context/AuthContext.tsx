@@ -19,11 +19,12 @@ export interface HistoryItem {
 
 interface AuthContextType {
   user: User | null;
-  login: (username: string) => void;
+  login: (username: string, password: string) => Promise<void>;
+  register: (username: string, password: string) => Promise<void>;
   logout: () => void;
   watchHistory: HistoryItem[];
-  addToHistory: (movie: any, episodeSlug?: string, currentTime?: number) => void;
-  updateWatchProgress: (movieSlug: string, episodeSlug: string, currentTime: number) => void;
+  addToHistory: (movie: any, episodeSlug?: string, currentTime?: number) => Promise<void>;
+  updateWatchProgress: (movieSlug: string, episodeSlug: string, currentTime: number) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,85 +33,182 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [user, setUser] = useState<User | null>(null);
   const [watchHistory, setWatchHistory] = useState<HistoryItem[]>([]);
 
-  // Load from local storage on mount
+  // Load from local storage and backend on mount
   useEffect(() => {
     const savedUser = localStorage.getItem('noirmovie_user');
-    if (savedUser) {
+    const token = localStorage.getItem('noirmovie_token');
+
+    if (savedUser && token) {
       const parsedUser = JSON.parse(savedUser);
       setUser(parsedUser);
 
-      const historyKey = `history_${parsedUser.username}`;
-      const savedHistory = localStorage.getItem(historyKey);
-      if (savedHistory) {
-        setWatchHistory(JSON.parse(savedHistory));
-      }
+      // Load history from backend MongoDB
+      fetch('/api/history', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+        .then(res => {
+          if (!res.ok) throw new Error('Failed to fetch history');
+          return res.json();
+        })
+        .then(data => {
+          setWatchHistory(data);
+          localStorage.setItem(`history_${parsedUser.username}`, JSON.stringify(data));
+        })
+        .catch(err => {
+          console.error('Error fetching history from backend:', err);
+          // Fallback to local storage if API fails
+          const historyKey = `history_${parsedUser.username}`;
+          const savedHistory = localStorage.getItem(historyKey);
+          if (savedHistory) {
+            setWatchHistory(JSON.parse(savedHistory));
+          }
+        });
     }
   }, []);
 
-  const login = (username: string) => {
-    const newUser = { username };
+  const login = async (username: string, password: string) => {
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ username, password })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Đăng nhập thất bại.');
+    }
+
+    const newUser = { username: data.user.username };
     setUser(newUser);
     localStorage.setItem('noirmovie_user', JSON.stringify(newUser));
+    localStorage.setItem('noirmovie_token', data.token);
 
-    // Load history for this user
-    const historyKey = `history_${username}`;
-    const savedHistory = localStorage.getItem(historyKey);
-    if (savedHistory) {
-      setWatchHistory(JSON.parse(savedHistory));
-    } else {
-      setWatchHistory([]);
+    // Sync history from backend
+    try {
+      const historyResponse = await fetch('/api/history', {
+        headers: {
+          'Authorization': `Bearer ${data.token}`
+        }
+      });
+      if (historyResponse.ok) {
+        const historyData = await historyResponse.json();
+        setWatchHistory(historyData);
+        localStorage.setItem(`history_${data.user.username}`, JSON.stringify(historyData));
+      }
+    } catch (err) {
+      console.error('Error loading history on login:', err);
     }
+  };
+
+  const register = async (username: string, password: string) => {
+    const response = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ username, password })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Đăng ký thất bại.');
+    }
+
+    const newUser = { username: data.user.username };
+    setUser(newUser);
+    localStorage.setItem('noirmovie_user', JSON.stringify(newUser));
+    localStorage.setItem('noirmovie_token', data.token);
+    setWatchHistory([]);
   };
 
   const logout = () => {
     setUser(null);
     setWatchHistory([]);
     localStorage.removeItem('noirmovie_user');
+    localStorage.removeItem('noirmovie_token');
   };
 
-  const addToHistory = (movie: any, episodeSlug?: string, currentTime?: number) => {
+  const addToHistory = async (movie: any, episodeSlug?: string, currentTime?: number) => {
+    const savedUserStr = localStorage.getItem('noirmovie_user');
+    const token = localStorage.getItem('noirmovie_token');
+    if (!savedUserStr) return;
+
+    const currentUser = JSON.parse(savedUserStr);
+    const imageDomain = movie.APP_DOMAIN_CDN_IMAGE || 'https://img.ophim.live';
+    const thumbUrl = movie.thumb_url || movie.poster_url;
+    const extractedThumbUrl = typeof thumbUrl === 'string' && thumbUrl.startsWith('http')
+      ? thumbUrl
+      : `${imageDomain}/uploads/movies/${thumbUrl}`;
+
+    // Find if it exists to get current episode/time details
+    const existingItem = watchHistory.find(item => item.slug === movie.slug);
+
+    const historyItemInput = {
+      slug: movie.slug,
+      name: movie.name,
+      thumb_url: extractedThumbUrl,
+      currentEpisodeSlug: episodeSlug || existingItem?.currentEpisodeSlug,
+      currentTime: currentTime !== undefined ? currentTime : existingItem?.currentTime,
+    };
+
+    // Update local state first for instant UI response
     setWatchHistory((prevHistory) => {
-      const savedUserStr = localStorage.getItem('noirmovie_user');
-      if (!savedUserStr) return prevHistory;
-
-      const currentUser = JSON.parse(savedUserStr);
-
-      const imageDomain = movie.APP_DOMAIN_CDN_IMAGE || 'https://img.ophim.live';
-      const thumbUrl = movie.thumb_url || movie.poster_url;
-      const extractedThumbUrl = typeof thumbUrl === 'string' && thumbUrl.startsWith('http')
-        ? thumbUrl
-        : `${imageDomain}/uploads/movies/${thumbUrl}`;
-
-      const existingItemIndex = prevHistory.findIndex(item => item.slug === movie.slug);
-      let existingItem = existingItemIndex >= 0 ? prevHistory[existingItemIndex] : null;
-
       const newItem: HistoryItem = {
-        _id: movie._id,
-        slug: movie.slug,
-        name: movie.name,
-        thumb_url: extractedThumbUrl,
+        _id: movie._id || Date.now().toString(),
+        ...historyItemInput,
         timestamp: Date.now(),
-        currentEpisodeSlug: episodeSlug || existingItem?.currentEpisodeSlug,
-        currentTime: currentTime !== undefined ? currentTime : existingItem?.currentTime,
       };
-
       const filtered = prevHistory.filter(item => item.slug !== movie.slug);
       const newHistory = [newItem, ...filtered].slice(0, 50);
-
       localStorage.setItem(`history_${currentUser.username}`, JSON.stringify(newHistory));
       return newHistory;
     });
+
+    // Sync to backend if token is available
+    if (token) {
+      try {
+        const response = await fetch('/api/history', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(historyItemInput)
+        });
+        if (response.ok) {
+          const updatedHistory = await response.json();
+          setWatchHistory(updatedHistory);
+          localStorage.setItem(`history_${currentUser.username}`, JSON.stringify(updatedHistory));
+        }
+      } catch (err) {
+        console.error('Error syncing history to backend:', err);
+      }
+    }
   };
 
-  const updateWatchProgress = (movieSlug: string, episodeSlug: string, currentTime: number) => {
+  const updateWatchProgress = async (movieSlug: string, episodeSlug: string, currentTime: number) => {
+    const savedUserStr = localStorage.getItem('noirmovie_user');
+    const token = localStorage.getItem('noirmovie_token');
+    if (!savedUserStr) return;
+
+    const currentUser = JSON.parse(savedUserStr);
+
+    // Update local state first for instant UI response
+    let itemToSync: any = null;
     setWatchHistory((prevHistory) => {
-      const savedUserStr = localStorage.getItem('noirmovie_user');
-      if (!savedUserStr) return prevHistory;
-
-      const currentUser = JSON.parse(savedUserStr);
-
       const newHistory = prevHistory.map(item => {
         if (item.slug === movieSlug) {
+          itemToSync = {
+            slug: item.slug,
+            name: item.name,
+            thumb_url: item.thumb_url,
+            currentEpisodeSlug: episodeSlug,
+            currentTime: currentTime
+          };
           return {
             ...item,
             currentEpisodeSlug: episodeSlug,
@@ -119,14 +217,34 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
         return item;
       });
-
       localStorage.setItem(`history_${currentUser.username}`, JSON.stringify(newHistory));
       return newHistory;
     });
+
+    // Sync to backend if token is available and we found the item
+    if (token && itemToSync) {
+      try {
+        const response = await fetch('/api/history', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(itemToSync)
+        });
+        if (response.ok) {
+          const updatedHistory = await response.json();
+          setWatchHistory(updatedHistory);
+          localStorage.setItem(`history_${currentUser.username}`, JSON.stringify(updatedHistory));
+        }
+      } catch (err) {
+        console.error('Error syncing progress to backend:', err);
+      }
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, watchHistory, addToHistory, updateWatchProgress }}>
+    <AuthContext.Provider value={{ user, login, register, logout, watchHistory, addToHistory, updateWatchProgress }}>
       {children}
     </AuthContext.Provider>
   );
