@@ -1,6 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronDown, Crown } from 'lucide-react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { 
+    ChevronDown, 
+    Crown, 
+    MessageSquare, 
+    Send, 
+    Users, 
+    Copy, 
+    AlertTriangle, 
+    Check, 
+    Star, 
+    Tv, 
+    LogOut, 
+    CheckCircle,
+    Play
+} from 'lucide-react';
 import { Hero } from '../components/Hero';
 import { VideoPlayer } from '../components/VideoPlayer';
 import { EpisodeList } from '../components/EpisodeList';
@@ -37,9 +51,28 @@ const getRequiredPlan = (movie: any): 'Free' | 'Standard' | 'VIP' => {
     return 'Free';
 };
 
+// Mock messages for Watch Party chatroom
+const mockNames = ['Lan_VIP', 'Hoang_Cine', 'Minh123', 'ThuyChi', 'Dung_Bomb', 'Ngoc_99', 'Khanh_VipMember'];
+const mockTexts = [
+    'Chào mọi người nha!',
+    'Phim nét căng đét luôn, 4K mượt ghê.',
+    'VIP xem không bị quảng cáo thích thật.',
+    'Âm thanh Dolby Atmos nghe phê quá.',
+    'Khúc này gây cấn ghê á!',
+    'Hình như đây là phần hay nhất rồi.',
+    'Phim này chiếu rạp hồi tháng trước nè.',
+    'Hôm nay xem chung vui ghê!',
+    'Phòng xem đông vui quá cả nhà ơi.',
+    'Có ai thấy giật lag gì không? Mình xem 4K căng luôn.',
+    'Phim hay, cốt truyện quá đỉnh.'
+];
+
 export const MovieDetail: React.FC = () => {
     const { slug } = useParams<{ slug: string }>();
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const roomId = searchParams.get('roomId');
+
     const [movieData, setMovieData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -48,6 +81,25 @@ export const MovieDetail: React.FC = () => {
     const [currentEpisode, setCurrentEpisode] = useState<any>(null);
     const [relatedSeasons, setRelatedSeasons] = useState<any[]>([]);
 
+    // Similar movies & comments
+    const [similarMovies, setSimilarMovies] = useState<any[]>([]);
+    const [comments, setComments] = useState<any[]>([]);
+    const [commentsLoading, setCommentsLoading] = useState(false);
+
+    // Comment Form states
+    const [commentContent, setCommentContent] = useState('');
+    const [commentRating, setCommentRating] = useState<number | null>(null);
+    const [commentIsSpoiler, setCommentIsSpoiler] = useState(false);
+    const [commentError, setCommentError] = useState('');
+    const [commentSuccess, setCommentSuccess] = useState('');
+    const [visibleSpoilers, setVisibleSpoilers] = useState<{ [key: string]: boolean }>({});
+
+    // Watch Party states
+    const [partyMessages, setPartyMessages] = useState<any[]>([]);
+    const [partyInput, setPartyInput] = useState('');
+    const [copied, setCopied] = useState(false);
+    const [rightPanelTab, setRightPanelTab] = useState<'chat' | 'episodes'>('chat');
+
     // For resuming playback
     const [initialTime, setInitialTime] = useState(0);
 
@@ -55,6 +107,7 @@ export const MovieDetail: React.FC = () => {
     const timeUpdateTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
     const currentTimeRef = useRef(0);
     const episodeDurationRef = useRef(0);
+    const chatContainerRef = useRef<HTMLDivElement>(null);
 
     // Auth context for tracking history
     const { addToHistory, updateWatchProgress, user, watchHistory } = useAuth();
@@ -65,12 +118,39 @@ export const MovieDetail: React.FC = () => {
     const userPlan = user?.subscription?.plan || 'Free';
     const hasAccess = planValues[userPlan] >= planValues[requiredPlan];
 
+    // Scroll chat to bottom
+    useEffect(() => {
+        if (chatContainerRef.current) {
+            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        }
+    }, [partyMessages]);
+
+    // Fetch comments list
+    const fetchComments = async () => {
+        if (!slug) return;
+        setCommentsLoading(true);
+        try {
+            const res = await fetch(`/api/movies/${slug}/comments`);
+            if (res.ok) {
+                const data = await res.json();
+                setComments(data);
+            }
+        } catch (err) {
+            console.error('Error fetching comments:', err);
+        } finally {
+            setCommentsLoading(false);
+        }
+    };
+
+    // Main fetch on slug change
     useEffect(() => {
         // Reset state on new movie
         historyAddedRef.current = false;
         setCurrentServerIndex(0);
         setCurrentEpisode(null);
         setInitialTime(0);
+        setSimilarMovies([]);
+        setPartyMessages([]);
 
         const fetchMovieDetail = async () => {
             setLoading(true);
@@ -117,6 +197,19 @@ export const MovieDetail: React.FC = () => {
                     } catch (err) {
                         console.error('Lỗi tìm phần khác:', err);
                     }
+
+                    // Fetch similar movies based on first category
+                    if (movieItem.category && movieItem.category.length > 0) {
+                        try {
+                            const simRes = await apiService.getMoviesByCategory(movieItem.category[0].slug);
+                            if (simRes.status === 'success' && simRes.data.items) {
+                                const filtered = simRes.data.items.filter((m: any) => m.slug !== movieItem.slug).slice(0, 6);
+                                setSimilarMovies(filtered);
+                            }
+                        } catch (e) {
+                            console.error('Failed to fetch similar movies:', e);
+                        }
+                    }
                 } else {
                     setError('Không tìm thấy thông tin phim');
                 }
@@ -128,9 +221,39 @@ export const MovieDetail: React.FC = () => {
         };
 
         fetchMovieDetail();
+        fetchComments();
         // Scroll to top on route change
         window.scrollTo(0, 0);
     }, [slug]);
+
+    // Simulated Watch Party messages loop
+    useEffect(() => {
+        if (!roomId) {
+            setPartyMessages([]);
+            return;
+        }
+
+        // Default tab to chat when party starts
+        setRightPanelTab('chat');
+
+        // Set initial welcome messages
+        setPartyMessages([
+            { sender: 'Hệ thống', text: `Chào mừng bạn đến với phòng xem chung! Mã phòng: ${roomId}`, isSystem: true, time: new Date() },
+            { sender: 'Hệ thống', text: 'Trình phát video đã được đồng bộ hóa thành công.', isSystem: true, time: new Date() }
+        ]);
+
+        const interval = setInterval(() => {
+            const randomName = mockNames[Math.floor(Math.random() * mockNames.length)];
+            const randomText = mockTexts[Math.floor(Math.random() * mockTexts.length)];
+            
+            setPartyMessages(prev => [
+                ...prev,
+                { sender: randomName, text: randomText, time: new Date() }
+            ]);
+        }, 7000); // add new message every 7 seconds
+
+        return () => clearInterval(interval);
+    }, [roomId]);
 
     // Track Watch History
     useEffect(() => {
@@ -180,7 +303,6 @@ export const MovieDetail: React.FC = () => {
                         setCurrentServerIndex(foundServerIndex);
                     }
                     setCurrentEpisode(foundEpisode);
-                    // Do not scroll down automatically if it's an auto-resume on load
                     return;
                 }
             }
@@ -238,7 +360,6 @@ export const MovieDetail: React.FC = () => {
         );
     }
 
-    // Try to use APP_DOMAIN_CDN_IMAGE if available, or extract from movie poster/thumb if it's absolute, else fallback
     const imageDomain = movieData.APP_DOMAIN_CDN_IMAGE || 'https://img.ophim.live';
 
     const handlePlayClick = () => {
@@ -261,7 +382,7 @@ export const MovieDetail: React.FC = () => {
             return;
         }
         setCurrentEpisode(episode);
-        setInitialTime(0); // Reset time when manually changing episode
+        setInitialTime(0); 
         playerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
@@ -279,7 +400,6 @@ export const MovieDetail: React.FC = () => {
         }
     };
 
-    // Debounce saving watch progress to prevent hammering localStorage
     const handleTimeUpdate = (currentTime: number, duration?: number) => {
         currentTimeRef.current = currentTime;
         if (duration) episodeDurationRef.current = duration;
@@ -291,7 +411,101 @@ export const MovieDetail: React.FC = () => {
 
         timeUpdateTimeout.current = setTimeout(() => {
             updateWatchProgress(movie.slug, currentEpisode.slug, currentTime, duration || episodeDurationRef.current);
-        }, 5000); // Save every 5 seconds of playback to avoid lag
+        }, 5000);
+    };
+
+    // Watch Party Creation
+    const handleCreateWatchParty = () => {
+        if (user?.subscription?.plan !== 'VIP') {
+            alert('Chức năng Tạo phòng xem chung chỉ dành riêng cho gói thành viên VIP!');
+            return;
+        }
+        const roomCode = `CINE-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+        setSearchParams({ roomId: roomCode });
+        // Automatically start playing first episode if not already playing
+        if (!currentEpisode && episodes.length > 0) {
+            setCurrentEpisode(episodes[0]);
+        }
+    };
+
+    const handleLeaveWatchParty = () => {
+        setSearchParams({});
+    };
+
+    const handleCopyPartyLink = () => {
+        navigator.clipboard.writeText(window.location.href);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    const handleSendPartyMessage = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!partyInput.trim() || !user) return;
+        setPartyMessages(prev => [
+            ...prev,
+            { sender: user.username, text: partyInput.trim(), time: new Date(), isSelf: true }
+        ]);
+        setPartyInput('');
+    };
+
+    // Comments submission
+    const handleCommentSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setCommentError('');
+        setCommentSuccess('');
+
+        if (!user) {
+            setCommentError('Vui lòng đăng nhập để gửi bình luận.');
+            return;
+        }
+
+        if (!commentContent.trim()) {
+            setCommentError('Nội dung bình luận không được bỏ trống.');
+            return;
+        }
+
+        const token = localStorage.getItem('noirmovie_token');
+        if (!token) {
+            setCommentError('Vui lòng đăng nhập lại để bình luận.');
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/movies/${slug}/comments`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    content: commentContent,
+                    rating: commentRating || undefined,
+                    isSpoiler: commentIsSpoiler
+                })
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.error || 'Có lỗi xảy ra.');
+            }
+
+            setCommentSuccess('Gửi bình luận thành công!');
+            setCommentContent('');
+            setCommentRating(null);
+            setCommentIsSpoiler(false);
+            
+            // Reload comments list
+            fetchComments();
+        } catch (err: any) {
+            setCommentError(err.message || 'Lỗi gửi bình luận.');
+        }
+    };
+
+    const toggleSpoilerVisibility = (commentId: string) => {
+        setVisibleSpoilers(prev => ({
+            ...prev,
+            [commentId]: !prev[commentId]
+        }));
     };
 
     const renderLockOverlay = (required: 'Standard' | 'VIP') => {
@@ -355,18 +569,20 @@ export const MovieDetail: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-background">
+        <div className="min-h-screen bg-background pb-16">
             <Hero
                 movie={movie}
                 imageDomain={imageDomain}
                 onPlayClick={handlePlayClick}
             />
 
-            <main className="pt-8 pb-20 max-w-[1920px] mx-auto px-6 md:px-container-desktop">
+            <main className="pt-8 max-w-[1920px] mx-auto px-6 md:px-container-desktop">
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                     
-                    {/* Left Column: Player and Details */}
+                    {/* Left Column: Player / Lock and Details */}
                     <div className="lg:col-span-8 space-y-6" ref={playerRef}>
+                        
+                        {/* Interactive Player Box */}
                         {!hasAccess ? (
                             renderLockOverlay(requiredPlan as 'Standard' | 'VIP')
                         ) : currentEpisode ? (
@@ -402,9 +618,22 @@ export const MovieDetail: React.FC = () => {
 
                         {/* Current playing episode header */}
                         {currentEpisode && (
-                            <div className="p-5 rounded-2xl glass-panel">
-                                <h3 className="text-lg font-bold text-white">Đang phát: Tập {currentEpisode.name}</h3>
-                                <p className="text-xs text-on-surface-variant/75 mt-1">{currentEpisode.filename}</p>
+                            <div className="p-5 rounded-2xl glass-panel flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                                <div>
+                                    <h3 className="text-lg font-bold text-white">Đang phát: Tập {currentEpisode.name}</h3>
+                                    <p className="text-xs text-on-surface-variant/75 mt-1">{currentEpisode.filename}</p>
+                                </div>
+
+                                {/* VIP Watch Party Trigger */}
+                                {user?.subscription?.plan === 'VIP' && !roomId && (
+                                    <button
+                                        onClick={handleCreateWatchParty}
+                                        className="bg-gradient-to-r from-amber-500 to-yellow-600 hover:brightness-110 text-black font-headline font-bold text-xs py-2.5 px-4 rounded-xl transition duration-300 flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/10 cursor-pointer self-start sm:self-auto"
+                                    >
+                                        <Crown size={14} />
+                                        Tạo phòng xem chung
+                                    </button>
+                                )}
                             </div>
                         )}
 
@@ -479,76 +708,444 @@ export const MovieDetail: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Right Column: Server, Season & Episode Lists */}
+                    {/* Right Column: Watch Party Chat OR Servers/Episode List */}
                     <div className="lg:col-span-4 space-y-6">
                         
-                        {/* Server Selectors */}
-                        {validServers.length > 0 && (
-                            <div className="glass-panel p-5 rounded-2xl">
-                                <div className="flex items-center gap-2 mb-4">
-                                    <span className="text-primary font-bold">⚡</span>
-                                    <h4 className="font-headline text-sm md:text-base font-bold text-white">Chọn nguồn phát video</h4>
+                        {roomId ? (
+                            /* Watch Party Sidebar Panels */
+                            <div className="glass-panel rounded-2xl overflow-hidden border border-white/10 flex flex-col h-[520px]">
+                                
+                                {/* Watch Party Panel Tab Header */}
+                                <div className="bg-zinc-950/80 border-b border-white/5 p-3 flex justify-between items-center shrink-0">
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => setRightPanelTab('chat')}
+                                            className={`text-xs font-headline font-extrabold uppercase py-1.5 px-3 rounded-lg border transition ${
+                                                rightPanelTab === 'chat'
+                                                    ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                                                    : 'bg-transparent border-transparent text-zinc-400 hover:text-white'
+                                            }`}
+                                        >
+                                            <Users size={12} className="inline mr-1" />
+                                            Xem chung
+                                        </button>
+                                        <button
+                                            onClick={() => setRightPanelTab('episodes')}
+                                            className={`text-xs font-headline font-extrabold uppercase py-1.5 px-3 rounded-lg border transition ${
+                                                rightPanelTab === 'episodes'
+                                                    ? 'bg-primary/10 border-primary/20 text-primary'
+                                                    : 'bg-transparent border-transparent text-zinc-400 hover:text-white'
+                                            }`}
+                                        >
+                                            <Tv size={12} className="inline mr-1" />
+                                            Tập phim
+                                        </button>
+                                    </div>
+                                    
+                                    {/* Leave room */}
+                                    <button 
+                                        onClick={handleLeaveWatchParty}
+                                        title="Rời phòng xem chung"
+                                        className="text-zinc-500 hover:text-primary transition p-1 hover:bg-white/5 rounded-lg"
+                                    >
+                                        <LogOut size={16} />
+                                    </button>
                                 </div>
 
-                                <div className="flex flex-wrap gap-2">
-                                    {validServers.map((server: any, index: number) => {
-                                        const isSelected = index === currentServerIndex;
-                                        return (
-                                            <button
-                                                key={index}
-                                                onClick={() => setCurrentServerIndex(index)}
-                                                className={`flex-1 min-w-[100px] py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer border active:scale-95 ${
-                                                    isSelected
-                                                        ? 'bg-primary border-primary text-white shadow-md'
-                                                        : 'bg-surface-container border-white/5 text-on-surface-variant hover:bg-primary/20 hover:border-primary/30 hover:text-white'
-                                                }`}
+                                {rightPanelTab === 'chat' ? (
+                                    /* Tab 1: Chat interface */
+                                    <>
+                                        {/* Room Header Info */}
+                                        <div className="bg-white/5 px-4 py-3 border-b border-white/5 flex justify-between items-center shrink-0 text-xs text-zinc-400">
+                                            <span className="flex items-center gap-1.5">
+                                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                Phòng hoạt động
+                                            </span>
+                                            <button 
+                                                onClick={handleCopyPartyLink}
+                                                className="flex items-center gap-1 hover:text-white transition font-semibold"
                                             >
-                                                {server.server_name}
+                                                {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                                                {copied ? 'Đã sao chép link' : 'Mời bạn bè'}
                                             </button>
+                                        </div>
+
+                                        {/* Chat Messages Area */}
+                                        <div 
+                                            ref={chatContainerRef}
+                                            className="flex-1 overflow-y-auto p-4 space-y-3.5 custom-scrollbar min-h-0"
+                                        >
+                                            {partyMessages.map((msg, index) => {
+                                                if (msg.isSystem) {
+                                                    return (
+                                                        <div key={index} className="text-center">
+                                                            <span className="inline-block bg-white/5 px-2.5 py-1 rounded-lg text-[10px] text-zinc-500 border border-white/5 leading-relaxed">
+                                                                {msg.text}
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                }
+
+                                                return (
+                                                    <div key={index} className={`flex flex-col ${msg.isSelf ? 'items-end' : 'items-start'}`}>
+                                                        <span className="text-[10px] text-zinc-500 font-bold mb-0.5">@{msg.sender}</span>
+                                                        <div className={`text-xs px-3.5 py-2 rounded-2xl max-w-[85%] leading-relaxed ${
+                                                            msg.isSelf 
+                                                                ? 'bg-primary text-white rounded-tr-none shadow-md shadow-primary/10' 
+                                                                : 'bg-surface-container-high/60 text-zinc-200 rounded-tl-none border border-white/5'
+                                                        }`}>
+                                                            {msg.text}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+
+                                        {/* Chat Input Field */}
+                                        <form onSubmit={handleSendPartyMessage} className="p-3 border-t border-white/5 bg-zinc-950/80 flex gap-2 shrink-0">
+                                            <input 
+                                                type="text"
+                                                placeholder="Nhập nội dung chát..."
+                                                value={partyInput}
+                                                onChange={e => setPartyInput(e.target.value)}
+                                                className="flex-1 bg-surface-container border border-white/5 rounded-xl px-3.5 py-2 text-xs outline-none text-on-surface focus:border-primary/50 placeholder:text-zinc-500"
+                                            />
+                                            <button 
+                                                type="submit"
+                                                className="bg-primary hover:bg-primary/95 text-white p-2.5 rounded-xl transition cursor-pointer flex-shrink-0"
+                                            >
+                                                <Send size={14} />
+                                            </button>
+                                        </form>
+                                    </>
+                                ) : (
+                                    /* Tab 2: Episodes selector during party */
+                                    <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                                        {validServers.length > 0 ? (
+                                            <EpisodeList
+                                                episodes={episodes}
+                                                currentEpisodeSlug={currentEpisode?.slug || ''}
+                                                onEpisodeSelect={handleEpisodeSelect}
+                                            />
+                                        ) : (
+                                            <div className="text-center py-8 text-zinc-500 text-xs">Không có tập phim</div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            /* Regular Sidebar Panels (No Watch Party Active) */
+                            <>
+                                {/* Server Selectors */}
+                                {validServers.length > 0 && (
+                                    <div className="glass-panel p-5 rounded-2xl">
+                                        <div className="flex items-center gap-2 mb-4">
+                                            <span className="text-primary font-bold">⚡</span>
+                                            <h4 className="font-headline text-sm md:text-base font-bold text-white">Chọn nguồn phát video</h4>
+                                        </div>
+
+                                        <div className="flex flex-wrap gap-2">
+                                            {validServers.map((server: any, index: number) => {
+                                                const isSelected = index === currentServerIndex;
+                                                return (
+                                                    <button
+                                                        key={index}
+                                                        onClick={() => setCurrentServerIndex(index)}
+                                                        className={`flex-1 min-w-[100px] py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer border active:scale-95 ${
+                                                            isSelected
+                                                                ? 'bg-primary border-primary text-white shadow-md'
+                                                                : 'bg-surface-container border-white/5 text-on-surface-variant hover:bg-primary/20 hover:border-primary/30 hover:text-white'
+                                                        }`}
+                                                    >
+                                                        {server.server_name}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Season Dropdown */}
+                                {relatedSeasons.length > 1 && (
+                                    <div className="glass-panel p-5 rounded-2xl flex flex-col gap-3">
+                                        <label className="text-xs font-bold text-primary uppercase tracking-widest">Chọn phần / Season</label>
+                                        <div className="relative">
+                                            <select
+                                                value={slug}
+                                                onChange={(e) => navigate(`/phim/${e.target.value}`)}
+                                                className="w-full bg-surface-container border border-white/5 rounded-xl px-4 py-2.5 text-sm outline-none text-on-surface focus:border-primary focus:ring-1 focus:ring-primary appearance-none cursor-pointer"
+                                            >
+                                                {relatedSeasons.map((season: any) => (
+                                                    <option key={season.slug} value={season.slug}>
+                                                        {season.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <div className="absolute right-4 top-3.5 pointer-events-none text-on-surface-variant">
+                                                <ChevronDown size={16} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Episode List */}
+                                {validServers.length > 0 ? (
+                                    <EpisodeList
+                                        episodes={episodes}
+                                        currentEpisodeSlug={currentEpisode?.slug || ''}
+                                        onEpisodeSelect={handleEpisodeSelect}
+                                    />
+                                ) : (
+                                    <div className="glass-panel p-6 rounded-2xl text-center">
+                                        <h3 className="font-headline text-base font-bold text-on-surface-variant/75">Trailer / Đang cập nhật</h3>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+
+                </div>
+
+                {/* Similar Movies Recommendation Grid */}
+                {similarMovies.length > 0 && (
+                    <div className="mt-16 border-t border-white/5 pt-10">
+                        <div className="flex items-center gap-2 mb-6">
+                            <span className="text-primary font-bold">🎬</span>
+                            <h2 className="font-headline text-2xl font-bold text-white tracking-tight">Có Thể Bạn Cũng Thích</h2>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+                            {similarMovies.map((simMovie: any) => {
+                                const thumbUrl = simMovie.thumb_url || simMovie.poster_url;
+                                const simThumb = thumbUrl?.startsWith('http') 
+                                    ? thumbUrl 
+                                    : `${imageDomain}/uploads/movies/${thumbUrl}`;
+                                
+                                return (
+                                    <div 
+                                        key={simMovie._id}
+                                        onClick={() => navigate(`/phim/${simMovie.slug}`)}
+                                        className="bg-surface-container/30 rounded-xl overflow-hidden border border-white/5 cursor-pointer relative group transition-all duration-300 hover:scale-[1.02] hover:border-primary/20 shadow-md flex flex-col justify-between"
+                                    >
+                                        <div className="aspect-[2/3] w-full overflow-hidden relative">
+                                            <img 
+                                                src={simThumb} 
+                                                alt={simMovie.name}
+                                                className="w-full h-full object-cover transition duration-300 group-hover:scale-105"
+                                                onError={(e) => {
+                                                    (e.target as HTMLImageElement).src = 'https://via.placeholder.com/120x180?text=No+Image';
+                                                }}
+                                            />
+                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition duration-300 flex items-center justify-center">
+                                                <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white shadow-lg">
+                                                    <Play size={16} fill="currentColor" className="ml-0.5" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="p-3">
+                                            <h4 className="text-xs font-bold text-white truncate group-hover:text-primary transition-colors">{simMovie.name}</h4>
+                                            <p className="text-[10px] text-zinc-500 mt-0.5">{simMovie.year || 'N/A'}</p>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* Comments & Reviews Glassmorphic Box */}
+                <div className="mt-12 border-t border-white/5 pt-10">
+                    <div className="flex items-center gap-2 mb-8">
+                        <MessageSquare className="text-primary" size={24} />
+                        <h2 className="font-headline text-2xl font-bold text-white tracking-tight">Đánh Giá & Bình Luận</h2>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                        
+                        {/* Left Column: Comment Submission Form */}
+                        <div className="lg:col-span-4 glass-panel p-6 rounded-2xl border border-white/5 space-y-4">
+                            <h3 className="font-headline font-bold text-lg text-white">Viết đánh giá của bạn</h3>
+                            
+                            {commentError && (
+                                <div className="p-3 bg-primary/10 border border-primary/20 text-primary text-xs rounded-xl flex items-center gap-1.5">
+                                    <AlertTriangle size={14} className="shrink-0" />
+                                    <span>{commentError}</span>
+                                </div>
+                            )}
+
+                            {commentSuccess && (
+                                <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs rounded-xl flex items-center gap-1.5">
+                                    <CheckCircle size={14} className="shrink-0" />
+                                    <span>{commentSuccess}</span>
+                                </div>
+                            )}
+
+                            {user ? (
+                                <form onSubmit={handleCommentSubmit} className="space-y-4">
+                                    {/* Star Rating Selection */}
+                                    <div className="space-y-1.5">
+                                        <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">Chấm điểm phim (sao)</span>
+                                        <div className="flex items-center gap-1 bg-white/5 py-2 px-3.5 rounded-xl border border-white/5 w-max">
+                                            {[1, 2, 3, 4, 5].map((star) => {
+                                                const isFilled = commentRating !== null && star <= commentRating;
+                                                return (
+                                                    <button
+                                                        key={star}
+                                                        type="button"
+                                                        onClick={() => setCommentRating(star)}
+                                                        className="text-zinc-600 hover:scale-110 active:scale-95 transition cursor-pointer"
+                                                    >
+                                                        <Star 
+                                                            size={22} 
+                                                            fill={isFilled ? '#f59e0b' : 'none'} 
+                                                            className={isFilled ? 'text-amber-400' : 'text-zinc-600'} 
+                                                        />
+                                                    </button>
+                                                );
+                                            })}
+                                            {commentRating && (
+                                                <span className="text-xs text-amber-400 font-bold ml-2">
+                                                    {commentRating}/5
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Spoiler Checkbox */}
+                                    <div className="flex items-center gap-2 bg-white/5 py-2.5 px-3.5 rounded-xl border border-white/5">
+                                        <input 
+                                            type="checkbox" 
+                                            id="isSpoiler"
+                                            checked={commentIsSpoiler}
+                                            onChange={e => setCommentIsSpoiler(e.target.checked)}
+                                            className="accent-primary w-4 h-4 rounded cursor-pointer"
+                                        />
+                                        <label htmlFor="isSpoiler" className="text-xs text-zinc-300 font-medium cursor-pointer selection:bg-transparent">
+                                            Bình luận này có chứa spoil tình tiết phim
+                                        </label>
+                                    </div>
+
+                                    {/* Textarea comment */}
+                                    <div className="space-y-1.5">
+                                        <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">Nội dung đánh giá</span>
+                                        <textarea
+                                            placeholder="Cảm nhận của bạn về bộ phim..."
+                                            value={commentContent}
+                                            onChange={e => setCommentContent(e.target.value)}
+                                            rows={4}
+                                            required
+                                            className="w-full bg-zinc-900 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-primary/50 resize-none placeholder:text-zinc-500 focus:ring-1 focus:ring-primary/20"
+                                        />
+                                    </div>
+
+                                    <button 
+                                        type="submit"
+                                        className="w-full bg-primary hover:bg-primary/95 text-white font-semibold py-3 px-4 rounded-xl transition duration-300 flex items-center justify-center gap-1.5 crimson-glow cursor-pointer"
+                                    >
+                                        <Send size={14} />
+                                        Gửi đánh giá
+                                    </button>
+                                </form>
+                            ) : (
+                                <div className="text-center py-6 bg-zinc-950/40 rounded-2xl border border-white/5">
+                                    <p className="text-xs text-zinc-400 mb-4 px-4">Đăng nhập tài khoản của bạn để để lại đánh giá và nhận xét về bộ phim.</p>
+                                    <button
+                                        onClick={() => {
+                                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                                            window.dispatchEvent(new CustomEvent('trigger-login-modal'));
+                                        }}
+                                        className="bg-primary hover:bg-primary/90 text-white font-semibold py-2 px-5 rounded-xl text-xs transition duration-300 shadow-md shadow-primary/10"
+                                    >
+                                        Đăng Nhập Ngay
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Right Column: Comments List */}
+                        <div className="lg:col-span-8 space-y-4">
+                            {commentsLoading ? (
+                                <div className="text-center py-10 text-xs text-zinc-500 animate-pulse">Đang tải danh sách bình luận...</div>
+                            ) : comments.length === 0 ? (
+                                <div className="text-center py-12 bg-white/5 rounded-2xl border border-white/5 text-sm text-zinc-400">
+                                    Chưa có lượt bình luận nào. Hãy là người đầu tiên chia sẻ cảm nghĩ về phim!
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {comments.map((comment) => {
+                                        const isSpoilerVisible = visibleSpoilers[comment._id] || false;
+                                        const needBlur = comment.isSpoiler && !isSpoilerVisible;
+                                        
+                                        return (
+                                            <div 
+                                                key={comment._id}
+                                                className="glass-panel p-5 rounded-2xl border border-white/5 space-y-3 relative overflow-hidden"
+                                            >
+                                                {/* User Info Header */}
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-800 flex items-center justify-center text-xs font-bold text-primary">
+                                                            {comment.avatar ? (
+                                                                <img src={comment.avatar} alt={comment.username} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                comment.username.charAt(0).toUpperCase()
+                                                            )}
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-xs font-bold text-white block">@{comment.username}</span>
+                                                            <small className="text-[9px] text-zinc-500 block mt-0.5">
+                                                                {new Date(comment.createdAt).toLocaleDateString('vi-VN', {
+                                                                    day: '2-digit',
+                                                                    month: '2-digit',
+                                                                    year: 'numeric',
+                                                                    hour: '2-digit',
+                                                                    minute: '2-digit'
+                                                                })}
+                                                            </small>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Rating Display */}
+                                                    {comment.rating && (
+                                                        <div className="flex items-center gap-0.5 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-lg text-amber-400 text-xs font-bold">
+                                                            ★ {comment.rating}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Comment Content (with spoiler shield option) */}
+                                                <div className="relative">
+                                                    {needBlur ? (
+                                                        <div 
+                                                            onClick={() => toggleSpoilerVisibility(comment._id)}
+                                                            className="bg-black/90 backdrop-blur-md border border-white/5 py-4 px-6 rounded-xl text-center text-xs font-medium text-amber-500 cursor-pointer hover:border-amber-500/30 hover:scale-[1.005] active:scale-[0.995] transition-all flex flex-col items-center justify-center gap-1.5"
+                                                        >
+                                                            <AlertTriangle size={18} className="text-amber-500 shrink-0" />
+                                                            <span>Bình luận chứa tiết lộ cốt truyện! Nhấp để hiển thị</span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-xs md:text-sm text-zinc-300 leading-relaxed font-sans pr-2">
+                                                            {comment.content}
+                                                            {comment.isSpoiler && (
+                                                                <button 
+                                                                    onClick={() => toggleSpoilerVisibility(comment._id)}
+                                                                    className="text-[10px] text-amber-500 font-bold hover:underline block mt-2"
+                                                                >
+                                                                    Ẩn bình luận spoil
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
                                         );
                                     })}
                                 </div>
-                            </div>
-                        )}
-
-                        {/* Season Dropdown */}
-                        {relatedSeasons.length > 1 && (
-                            <div className="glass-panel p-5 rounded-2xl flex flex-col gap-3">
-                                <label className="text-xs font-bold text-primary uppercase tracking-widest">Chọn phần / Season</label>
-                                <div className="relative">
-                                    <select
-                                        value={slug}
-                                        onChange={(e) => navigate(`/phim/${e.target.value}`)}
-                                        className="w-full bg-surface-container border border-white/5 rounded-xl px-4 py-2.5 text-sm outline-none text-on-surface focus:border-primary focus:ring-1 focus:ring-primary appearance-none cursor-pointer"
-                                    >
-                                        {relatedSeasons.map((season: any) => (
-                                            <option key={season.slug} value={season.slug}>
-                                                {season.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <div className="absolute right-4 top-3.5 pointer-events-none text-on-surface-variant">
-                                        <ChevronDown size={16} />
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Episode List */}
-                        {validServers.length > 0 ? (
-                            <EpisodeList
-                                episodes={episodes}
-                                currentEpisodeSlug={currentEpisode?.slug || ''}
-                                onEpisodeSelect={handleEpisodeSelect}
-                            />
-                        ) : (
-                            <div className="glass-panel p-6 rounded-2xl text-center">
-                                <h3 className="font-headline text-base font-bold text-on-surface-variant/75">Trailer / Đang cập nhật</h3>
-                            </div>
-                        )}
+                            )}
+                        </div>
 
                     </div>
                 </div>
+
             </main>
         </div>
     );

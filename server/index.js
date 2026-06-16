@@ -143,6 +143,17 @@ const UserSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', UserSchema);
 
+const CommentSchema = new mongoose.Schema({
+  movieSlug: { type: String, required: true, index: true },
+  username: { type: String, required: true },
+  avatar: { type: String },
+  rating: { type: Number, min: 1, max: 5 },
+  content: { type: String, required: true },
+  isSpoiler: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now }
+});
+const Comment = mongoose.model('Comment', CommentSchema);
+
 // Authentication Middleware
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -823,6 +834,51 @@ app.post('/api/user/subscribe', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: 'Lỗi máy chủ khi đăng ký gói cước: ' + error.message });
+  }
+});
+
+// --- MOVIE COMMENTS & RATINGS ENDPOINTS ---
+
+// Get movie comments
+app.get('/api/movies/:slug/comments', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const comments = await Comment.find({ movieSlug: slug }).sort({ createdAt: -1 });
+    res.json(comments);
+  } catch (error) {
+    res.status(500).json({ error: 'Lỗi máy chủ khi lấy bình luận: ' + error.message });
+  }
+});
+
+// Post a new comment (requires auth token)
+app.post('/api/movies/:slug/comments', authenticateToken, async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const { content, rating, isSpoiler } = req.body;
+    
+    if (!content || content.trim() === '') {
+      return res.status(400).json({ error: 'Nội dung bình luận không được để trống.' });
+    }
+
+    // Find user to get their avatar
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'Không tìm thấy thông tin người dùng.' });
+    }
+
+    const newComment = new Comment({
+      movieSlug: slug,
+      username: user.username,
+      avatar: user.avatar,
+      rating: rating ? Number(rating) : undefined,
+      content: content.trim(),
+      isSpoiler: Boolean(isSpoiler)
+    });
+
+    await newComment.save();
+    res.status(201).json(newComment);
+  } catch (error) {
+    res.status(500).json({ error: 'Lỗi máy chủ khi thêm bình luận: ' + error.message });
   }
 });
 
