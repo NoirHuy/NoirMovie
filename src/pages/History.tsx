@@ -1,10 +1,27 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { MovieGrid } from '../components/MovieGrid';
-import { Clock } from 'lucide-react';
+import { Clock, Play, RotateCcw } from 'lucide-react';
 
 export const History: React.FC = () => {
     const { watchHistory, user } = useAuth();
+
+    const formatTime = (seconds?: number) => {
+        if (seconds === undefined || seconds === 0) return '00:00';
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    const formatEpisode = (slug?: string) => {
+        if (!slug) return '';
+        // E.g., "tap-05" -> "Tập 05" or "tap-1" -> "Tập 1"
+        return slug
+            .replace(/-/g, ' ')
+            .replace(/\btap\b/gi, 'Tập')
+            .replace(/\bfull\b/gi, 'Full')
+            .replace(/^\w/, (c) => c.toUpperCase());
+    };
 
     if (!user) {
         return (
@@ -35,15 +52,54 @@ export const History: React.FC = () => {
                 <p className="text-muted">Lịch sử xem phim của tài khoản <strong>{user.username}</strong></p>
             </div>
 
-            {/* We reuse the generic MovieGrid to show history items */}
-            <MovieGrid movies={watchHistory.map((item) => ({
-                _id: item._id,
-                name: item.name,
-                slug: item.slug,
-                origin_name: item.origin_name || '',
-                thumb_url: item.thumb_url,
-                year: item.year || 0
-            }))} />
+            <div className="container" style={{ paddingBottom: '4rem' }}>
+                <div className="movie-grid">
+                    {watchHistory.map((item) => (
+                        <Link to={`/phim/${item.slug}`} key={item._id} className="movie-card">
+                            <div className="movie-poster-wrapper">
+                                <img
+                                    src={item.thumb_url}
+                                    alt={item.name}
+                                    className="movie-poster"
+                                    loading="lazy"
+                                    onError={(e) => {
+                                        (e.target as HTMLImageElement).src = 'https://via.placeholder.com/220x330?text=No+Image';
+                                    }}
+                                />
+                                <div className="movie-overlay">
+                                    <div className="play-circle">
+                                        <Play fill="currentColor" size={24} />
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="movie-info">
+                                <h3 className="movie-title" title={item.name}>{item.name}</h3>
+                                
+                                {item.currentEpisodeSlug && (
+                                    <div style={{ 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        gap: '4px', 
+                                        fontSize: '0.8rem', 
+                                        color: 'var(--accent-primary)',
+                                        marginTop: '4px',
+                                        fontWeight: '500'
+                                    }}>
+                                        <RotateCcw size={12} />
+                                        <span>
+                                            {formatEpisode(item.currentEpisodeSlug)} 
+                                            {item.currentTime && item.currentTime > 0 ? ` (${formatTime(item.currentTime)})` : ''}
+                                        </span>
+                                    </div>
+                                )}
+                                <p className="movie-year" style={{ marginTop: '2px' }}>
+                                    {item.year ? `${item.year}` : 'Đã xem gần đây'}
+                                </p>
+                            </div>
+                        </Link>
+                    ))}
+                </div>
+            </div>
         </div>
     );
 };
