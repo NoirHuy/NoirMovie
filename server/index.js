@@ -34,7 +34,8 @@ const HistoryItemSchema = new mongoose.Schema({
   thumb_url: { type: String },
   timestamp: { type: Number, default: Date.now },
   currentEpisodeSlug: { type: String },
-  currentTime: { type: Number }
+  currentTime: { type: Number },
+  duration: { type: Number }
 });
 
 const UserSchema = new mongoose.Schema({
@@ -173,7 +174,7 @@ app.get('/api/history', authenticateToken, async (req, res) => {
 // Sync history item (add or update)
 app.post('/api/history', authenticateToken, async (req, res) => {
   try {
-    const { slug, name, thumb_url, currentEpisodeSlug, currentTime } = req.body;
+    const { slug, name, thumb_url, currentEpisodeSlug, currentTime, duration } = req.body;
     if (!slug || !name) {
       return res.status(400).json({ error: 'Thiếu thông tin phim (slug hoặc tên).' });
     }
@@ -193,6 +194,7 @@ app.post('/api/history', authenticateToken, async (req, res) => {
       if (currentEpisodeSlug !== undefined) existingItem.currentEpisodeSlug = currentEpisodeSlug;
       if (currentTime !== undefined) existingItem.currentTime = currentTime;
       if (thumb_url !== undefined) existingItem.thumb_url = thumb_url;
+      if (duration !== undefined) existingItem.duration = duration;
     } else {
       // Add new to history
       user.watchHistory.push({
@@ -201,7 +203,8 @@ app.post('/api/history', authenticateToken, async (req, res) => {
         thumb_url,
         timestamp: Date.now(),
         currentEpisodeSlug,
-        currentTime
+        currentTime,
+        duration
       });
     }
 
@@ -215,6 +218,21 @@ app.post('/api/history', authenticateToken, async (req, res) => {
     res.json(user.watchHistory.sort((a, b) => b.timestamp - a.timestamp));
   } catch (error) {
     res.status(500).json({ error: 'Lỗi khi đồng bộ lịch sử: ' + error.message });
+  }
+});
+
+// Clear all watch history
+app.delete('/api/history', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'Không tìm thấy người dùng.' });
+    }
+    user.watchHistory = [];
+    await user.save();
+    res.json([]);
+  } catch (error) {
+    res.status(500).json({ error: 'Lỗi khi xóa lịch sử xem phim: ' + error.message });
   }
 });
 

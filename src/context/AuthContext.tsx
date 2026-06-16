@@ -15,6 +15,7 @@ export interface HistoryItem {
   origin_name?: string;
   currentEpisodeSlug?: string;
   currentTime?: number;
+  duration?: number;
 }
 
 interface AuthContextType {
@@ -23,8 +24,9 @@ interface AuthContextType {
   register: (username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   watchHistory: HistoryItem[];
-  addToHistory: (movie: any, episodeSlug?: string, currentTime?: number) => Promise<void>;
-  updateWatchProgress: (movieSlug: string, episodeSlug: string, currentTime: number) => Promise<void>;
+  addToHistory: (movie: any, episodeSlug?: string, currentTime?: number, duration?: number) => Promise<void>;
+  updateWatchProgress: (movieSlug: string, episodeSlug: string, currentTime: number, duration?: number) => Promise<void>;
+  clearHistory: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -132,7 +134,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.removeItem('noirmovie_token');
   };
 
-  const addToHistory = async (movie: any, episodeSlug?: string, currentTime?: number) => {
+  const addToHistory = async (movie: any, episodeSlug?: string, currentTime?: number, duration?: number) => {
     const savedUserStr = localStorage.getItem('noirmovie_user');
     const token = localStorage.getItem('noirmovie_token');
     if (!savedUserStr) return;
@@ -147,12 +149,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Find if it exists to get current episode/time details
     const existingItem = watchHistory.find(item => item.slug === movie.slug);
 
-    const historyItemInput = {
+    const historyItemInput: any = {
       slug: movie.slug,
       name: movie.name,
       thumb_url: extractedThumbUrl,
       currentEpisodeSlug: episodeSlug || existingItem?.currentEpisodeSlug,
       currentTime: currentTime !== undefined ? currentTime : existingItem?.currentTime,
+      duration: duration !== undefined ? duration : existingItem?.duration,
     };
 
     // Update local state first for instant UI response
@@ -191,7 +194,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const updateWatchProgress = async (movieSlug: string, episodeSlug: string, currentTime: number) => {
+  const updateWatchProgress = async (movieSlug: string, episodeSlug: string, currentTime: number, duration?: number) => {
     const savedUserStr = localStorage.getItem('noirmovie_user');
     const token = localStorage.getItem('noirmovie_token');
     if (!savedUserStr) return;
@@ -208,12 +211,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             name: item.name,
             thumb_url: item.thumb_url,
             currentEpisodeSlug: episodeSlug,
-            currentTime: currentTime
+            currentTime: currentTime,
+            duration: duration !== undefined ? duration : item.duration
           };
           return {
             ...item,
             currentEpisodeSlug: episodeSlug,
-            currentTime: currentTime
+            currentTime: currentTime,
+            duration: duration !== undefined ? duration : item.duration
           };
         }
         return item;
@@ -245,8 +250,38 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const clearHistory = async () => {
+    const savedUserStr = localStorage.getItem('noirmovie_user');
+    const token = localStorage.getItem('noirmovie_token');
+    
+    // Clear local state first
+    setWatchHistory([]);
+    if (savedUserStr) {
+      const currentUser = JSON.parse(savedUserStr);
+      localStorage.removeItem(`history_${currentUser.username}`);
+    }
+
+    // Sync deletion to backend
+    if (token) {
+      try {
+        const response = await fetch('/api/history', {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (response.ok) {
+          const updatedHistory = await response.json();
+          setWatchHistory(updatedHistory);
+        }
+      } catch (err) {
+        console.error('Error deleting history from backend:', err);
+      }
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, watchHistory, addToHistory, updateWatchProgress }}>
+    <AuthContext.Provider value={{ user, login, register, logout, watchHistory, addToHistory, updateWatchProgress, clearHistory }}>
       {children}
     </AuthContext.Provider>
   );

@@ -24,6 +24,7 @@ export const MovieDetail: React.FC = () => {
     const playerRef = useRef<HTMLDivElement>(null);
     const timeUpdateTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
     const currentTimeRef = useRef(0);
+    const episodeDurationRef = useRef(0);
 
     // Auth context for tracking history
     const { addToHistory, updateWatchProgress, user, watchHistory } = useAuth();
@@ -164,7 +165,7 @@ export const MovieDetail: React.FC = () => {
 
     const saveProgressNow = () => {
         if (user && currentEpisode && movie?.slug && currentTimeRef.current > 0) {
-            updateWatchProgress(movie.slug, currentEpisode.slug, currentTimeRef.current);
+            updateWatchProgress(movie.slug, currentEpisode.slug, currentTimeRef.current, episodeDurationRef.current || undefined);
         }
     };
 
@@ -224,8 +225,9 @@ export const MovieDetail: React.FC = () => {
     };
 
     // Debounce saving watch progress to prevent hammering localStorage
-    const handleTimeUpdate = (currentTime: number) => {
+    const handleTimeUpdate = (currentTime: number, duration?: number) => {
         currentTimeRef.current = currentTime;
+        if (duration) episodeDurationRef.current = duration;
         if (!user || !currentEpisode || !movie.slug) return;
 
         if (timeUpdateTimeout.current) {
@@ -233,12 +235,13 @@ export const MovieDetail: React.FC = () => {
         }
 
         timeUpdateTimeout.current = setTimeout(() => {
-            updateWatchProgress(movie.slug, currentEpisode.slug, currentTime);
+            updateWatchProgress(movie.slug, currentEpisode.slug, currentTime, duration || episodeDurationRef.current);
         }, 5000); // Save every 5 seconds of playback to avoid lag
     };
 
-    const handlePause = (currentTime: number) => {
+    const handlePause = (currentTime: number, duration?: number) => {
         currentTimeRef.current = currentTime;
+        if (duration) episodeDurationRef.current = duration;
         saveProgressNow();
     };
 

@@ -14,8 +14,8 @@ interface VideoPlayerProps {
     episode: Episode;
     posterUrl: string;
     initialTime?: number;
-    onTimeUpdate?: (currentTime: number) => void;
-    onPause?: (currentTime: number) => void;
+    onTimeUpdate?: (currentTime: number, duration?: number) => void;
+    onPause?: (currentTime: number, duration?: number) => void;
 }
 
 export const VideoPlayer: React.FC<VideoPlayerProps> = ({ episode, posterUrl, initialTime = 0, onTimeUpdate, onPause }) => {
@@ -110,13 +110,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ episode, posterUrl, in
 
     const handleTimeUpdate = () => {
         if (videoRef.current && onTimeUpdate) {
-            onTimeUpdate(videoRef.current.currentTime);
+            onTimeUpdate(videoRef.current.currentTime, videoRef.current.duration);
         }
     };
 
     const handlePause = () => {
         if (videoRef.current && onPause) {
-            onPause(videoRef.current.currentTime);
+            onPause(videoRef.current.currentTime, videoRef.current.duration);
         }
     };
 
