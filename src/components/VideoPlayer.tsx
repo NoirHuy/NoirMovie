@@ -15,9 +15,10 @@ interface VideoPlayerProps {
     posterUrl: string;
     initialTime?: number;
     onTimeUpdate?: (currentTime: number) => void;
+    onPause?: (currentTime: number) => void;
 }
 
-export const VideoPlayer: React.FC<VideoPlayerProps> = ({ episode, posterUrl, initialTime = 0, onTimeUpdate }) => {
+export const VideoPlayer: React.FC<VideoPlayerProps> = ({ episode, posterUrl, initialTime = 0, onTimeUpdate, onPause }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [useIframe, setUseIframe] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -40,7 +41,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ episode, posterUrl, in
             if (Hls.isSupported()) {
                 hls = new Hls({
                     enableWorker: true,
-                    lowLatencyMode: true,
+                    maxBufferLength: 30,
+                    maxMaxBufferLength: 600,
+                    backBufferLength: 90,
                 });
 
                 hls.loadSource(episode.link_m3u8);
@@ -96,6 +99,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ episode, posterUrl, in
         }
 
         return () => {
+            if (video && onPause) {
+                onPause(video.currentTime);
+            }
             if (hls) {
                 hls.destroy();
             }
@@ -105,6 +111,12 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ episode, posterUrl, in
     const handleTimeUpdate = () => {
         if (videoRef.current && onTimeUpdate) {
             onTimeUpdate(videoRef.current.currentTime);
+        }
+    };
+
+    const handlePause = () => {
+        if (videoRef.current && onPause) {
+            onPause(videoRef.current.currentTime);
         }
     };
 
@@ -147,6 +159,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ episode, posterUrl, in
                         poster={posterUrl}
                         playsInline
                         onTimeUpdate={handleTimeUpdate}
+                        onPause={handlePause}
                     />
                 )}
 

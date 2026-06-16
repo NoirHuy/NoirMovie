@@ -177,7 +177,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify(historyItemInput)
+          body: JSON.stringify(historyItemInput),
+          keepalive: true
         });
         if (response.ok) {
           const updatedHistory = await response.json();
@@ -230,7 +231,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify(itemToSync)
+          body: JSON.stringify(itemToSync),
+          keepalive: true
         });
         if (response.ok) {
           const updatedHistory = await response.json();

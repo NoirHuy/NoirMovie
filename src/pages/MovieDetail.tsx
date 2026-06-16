@@ -22,6 +22,7 @@ export const MovieDetail: React.FC = () => {
 
     const playerRef = useRef<HTMLDivElement>(null);
     const timeUpdateTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const currentTimeRef = useRef(0);
 
     // Auth context for tracking history
     const { addToHistory, updateWatchProgress, user, watchHistory } = useAuth();
@@ -160,6 +161,28 @@ export const MovieDetail: React.FC = () => {
         };
     }, []);
 
+    const saveProgressNow = () => {
+        if (user && currentEpisode && movie?.slug && currentTimeRef.current > 0) {
+            updateWatchProgress(movie.slug, currentEpisode.slug, currentTimeRef.current);
+        }
+    };
+
+    // Save progress when user leaves the page or closes tab
+    useEffect(() => {
+        const handleUnload = () => {
+            saveProgressNow();
+        };
+
+        window.addEventListener('beforeunload', handleUnload);
+        window.addEventListener('pagehide', handleUnload);
+
+        return () => {
+            window.removeEventListener('beforeunload', handleUnload);
+            window.removeEventListener('pagehide', handleUnload);
+            saveProgressNow();
+        };
+    }, [user, currentEpisode, movie?.slug]);
+
     if (loading) {
         return (
             <div className="container" style={{ paddingTop: '2rem', textAlign: 'center' }}>
@@ -197,6 +220,7 @@ export const MovieDetail: React.FC = () => {
 
     // Debounce saving watch progress to prevent hammering localStorage
     const handleTimeUpdate = (currentTime: number) => {
+        currentTimeRef.current = currentTime;
         if (!user || !currentEpisode || !movie.slug) return;
 
         if (timeUpdateTimeout.current) {
@@ -205,7 +229,12 @@ export const MovieDetail: React.FC = () => {
 
         timeUpdateTimeout.current = setTimeout(() => {
             updateWatchProgress(movie.slug, currentEpisode.slug, currentTime);
-        }, 3000); // Save every 3 seconds of playback to avoid lag
+        }, 5000); // Save every 5 seconds of playback to avoid lag
+    };
+
+    const handlePause = (currentTime: number) => {
+        currentTimeRef.current = currentTime;
+        saveProgressNow();
     };
 
     return (
@@ -224,6 +253,7 @@ export const MovieDetail: React.FC = () => {
                             posterUrl={movie.poster_url?.startsWith('http') ? movie.poster_url : `${imageDomain}/uploads/movies/${movie.poster_url || movie.thumb_url}`}
                             initialTime={initialTime}
                             onTimeUpdate={handleTimeUpdate}
+                            onPause={handlePause}
                         />
                     ) : (
                         <div className="player-placeholder glass-panel">
