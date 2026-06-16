@@ -26,29 +26,77 @@ interface Episode {
     link_m3u8: string;
 }
 
+export interface VideoPlayerRef {
+    play: () => void;
+    pause: () => void;
+    seek: (time: number) => void;
+    getCurrentTime: () => number;
+}
+
 interface VideoPlayerProps {
     episode: Episode;
     posterUrl: string;
     initialTime?: number;
     onTimeUpdate?: (currentTime: number, duration?: number) => void;
     onPause?: (currentTime: number, duration?: number) => void;
+    onPlay?: (currentTime: number) => void;
+    onSeek?: (currentTime: number) => void;
     onNextEpisode?: () => void;
     hasNextEpisode?: boolean;
 }
 
-export const VideoPlayer: React.FC<VideoPlayerProps> = ({ 
+export const VideoPlayer = React.forwardRef<VideoPlayerRef, VideoPlayerProps>(({ 
     episode, 
     posterUrl, 
     initialTime = 0, 
     onTimeUpdate, 
     onPause,
+    onPlay,
+    onSeek,
     onNextEpisode,
     hasNextEpisode = false
-}) => {
+}, ref) => {
     const videoRef = useRef<HTMLVideoElement>(null);
+    const isSyncingRef = useRef(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const hlsRef = useRef<Hls | null>(null);
     const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    React.useImperativeHandle(ref, () => ({
+        play: () => {
+            if (videoRef.current && videoRef.current.paused) {
+                isSyncingRef.current = true;
+                videoRef.current.play()
+                    .then(() => {
+                        setIsPlaying(true);
+                        isSyncingRef.current = false;
+                    })
+                    .catch(e => {
+                        console.log("Sync play error", e);
+                        isSyncingRef.current = false;
+                    });
+            }
+        },
+        pause: () => {
+            if (videoRef.current) {
+                isSyncingRef.current = true;
+                videoRef.current.pause();
+                setIsPlaying(false);
+                isSyncingRef.current = false;
+            }
+        },
+        seek: (time: number) => {
+            if (videoRef.current) {
+                isSyncingRef.current = true;
+                videoRef.current.currentTime = time;
+                setCurrentTime(time);
+                isSyncingRef.current = false;
+            }
+        },
+        getCurrentTime: () => {
+            return videoRef.current ? videoRef.current.currentTime : 0;
+        }
+    }));
 
     const [useIframe, setUseIframe] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -224,14 +272,23 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
     // Video Control Functions
     const togglePlay = () => {
-        if (!videoRef.current) return;
+        const video = videoRef.current;
+        if (!video) return;
         if (isPlaying) {
-            videoRef.current.pause();
+            video.pause();
             setIsPlaying(false);
-            if (onPause) onPause(videoRef.current.currentTime, videoRef.current.duration);
+            if (onPause && !isSyncingRef.current) {
+                onPause(video.currentTime, video.duration);
+            }
         } else {
-            videoRef.current.play()
-                .then(() => setIsPlaying(true))
+            const timeAtPlay = video.currentTime;
+            video.play()
+                .then(() => {
+                    setIsPlaying(true);
+                    if (onPlay && !isSyncingRef.current) {
+                        onPlay(timeAtPlay);
+                    }
+                })
                 .catch(e => console.error("Play failed", e));
         }
     };
@@ -241,6 +298,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         const targetTime = Math.min(Math.max(videoRef.current.currentTime + seconds, 0), duration);
         videoRef.current.currentTime = targetTime;
         setCurrentTime(targetTime);
+        if (onSeek && !isSyncingRef.current) {
+            onSeek(targetTime);
+        }
         resetControlsTimeout();
     };
 
@@ -249,6 +309,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         if (videoRef.current) {
             videoRef.current.currentTime = time;
             setCurrentTime(time);
+            if (onSeek && !isSyncingRef.current) {
+                onSeek(time);
+            }
         }
         resetControlsTimeout();
     };
@@ -658,4 +721,4 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             </div>
         </div>
     );
-};
+});

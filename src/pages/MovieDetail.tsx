@@ -17,7 +17,10 @@ import {
 } from 'lucide-react';
 import { Hero } from '../components/Hero';
 import { VideoPlayer } from '../components/VideoPlayer';
+import type { VideoPlayerRef } from '../components/VideoPlayer';
 import { EpisodeList } from '../components/EpisodeList';
+import { io } from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
 import { apiService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -51,21 +54,7 @@ const getRequiredPlan = (movie: any): 'Free' | 'Standard' | 'VIP' => {
     return 'Free';
 };
 
-// Mock messages for Watch Party chatroom
-const mockNames = ['Lan_VIP', 'Hoang_Cine', 'Minh123', 'ThuyChi', 'Dung_Bomb', 'Ngoc_99', 'Khanh_VipMember'];
-const mockTexts = [
-    'Chào mọi người nha!',
-    'Phim nét căng đét luôn, 4K mượt ghê.',
-    'VIP xem không bị quảng cáo thích thật.',
-    'Âm thanh Dolby Atmos nghe phê quá.',
-    'Khúc này gây cấn ghê á!',
-    'Hình như đây là phần hay nhất rồi.',
-    'Phim này chiếu rạp hồi tháng trước nè.',
-    'Hôm nay xem chung vui ghê!',
-    'Phòng xem đông vui quá cả nhà ơi.',
-    'Có ai thấy giật lag gì không? Mình xem 4K căng luôn.',
-    'Phim hay, cốt truyện quá đỉnh.'
-];
+
 
 export const MovieDetail: React.FC = () => {
     const { slug } = useParams<{ slug: string }>();
@@ -98,7 +87,7 @@ export const MovieDetail: React.FC = () => {
     const [partyMessages, setPartyMessages] = useState<any[]>([]);
     const [partyInput, setPartyInput] = useState('');
     const [copied, setCopied] = useState(false);
-    const [rightPanelTab, setRightPanelTab] = useState<'chat' | 'episodes'>('chat');
+    const [rightPanelTab, setRightPanelTab] = useState<'chat' | 'members' | 'episodes'>('chat');
 
     // For resuming playback
     const [initialTime, setInitialTime] = useState(0);
@@ -112,6 +101,9 @@ export const MovieDetail: React.FC = () => {
     // Auth context for tracking history
     const { addToHistory, updateWatchProgress, user, watchHistory } = useAuth();
     const historyAddedRef = useRef(false);
+    const videoPlayerRef = useRef<VideoPlayerRef>(null);
+    const socketRef = useRef<Socket | null>(null);
+    const [roomMembers, setRoomMembers] = useState<any[]>([]);
 
     const movie = movieData?.item;
     const requiredPlan = getRequiredPlan(movie);
@@ -226,34 +218,112 @@ export const MovieDetail: React.FC = () => {
         window.scrollTo(0, 0);
     }, [slug]);
 
-    // Simulated Watch Party messages loop
+    // Real-Time Watch Party Socket.io Integration
     useEffect(() => {
         if (!roomId) {
+            if (socketRef.current) {
+                socketRef.current.disconnect();
+                socketRef.current = null;
+            }
             setPartyMessages([]);
+            setRoomMembers([]);
             return;
         }
 
         // Default tab to chat when party starts
         setRightPanelTab('chat');
 
+        // Connect to the socket server
+        // In local development, it will hit Vite dev server which proxies it.
+        // In production, it connects to the same origin.
+        const socket = io(window.location.origin);
+        socketRef.current = socket;
+
         // Set initial welcome messages
         setPartyMessages([
-            { sender: 'Hệ thống', text: `Chào mừng bạn đến với phòng xem chung! Mã phòng: ${roomId}`, isSystem: true, time: new Date() },
-            { sender: 'Hệ thống', text: 'Trình phát video đã được đồng bộ hóa thành công.', isSystem: true, time: new Date() }
+            { _id: 'welcome-1', sender: 'Hệ thống', text: `Chào mừng bạn đến với phòng xem chung! Mã phòng: ${roomId}`, isSystem: true, time: new Date() },
+            { _id: 'welcome-2', sender: 'Hệ thống', text: 'Trình phát video đã được đồng bộ hóa thành công qua WebSockets.', isSystem: true, time: new Date() }
         ]);
 
-        const interval = setInterval(() => {
-            const randomName = mockNames[Math.floor(Math.random() * mockNames.length)];
-            const randomText = mockTexts[Math.floor(Math.random() * mockTexts.length)];
-            
-            setPartyMessages(prev => [
-                ...prev,
-                { sender: randomName, text: randomText, time: new Date() }
-            ]);
-        }, 7000); // add new message every 7 seconds
+        // Join the room
+        socket.emit('join-room', {
+            roomId,
+            username: user?.username || `Guest_${Math.floor(Math.random() * 1000)}`,
+            avatar: user?.avatar
+        });
 
-        return () => clearInterval(interval);
-    }, [roomId]);
+        // Listen for messages
+        socket.on('message', (msg: any) => {
+            setPartyMessages(prev => {
+                if (prev.some(m => m._id === msg._id)) return prev;
+                return [...prev, {
+                    ...msg,
+                    isSelf: msg.sender === user?.username
+                }];
+            });
+        });
+
+        // Listen for active members list
+        socket.on('room-members', (members: any[]) => {
+            setRoomMembers(members);
+        });
+
+        // Listen for player sync events from others
+        socket.on('player-play', ({ time }: { time: number }) => {
+            if (videoPlayerRef.current) {
+                videoPlayerRef.current.play();
+                const localTime = videoPlayerRef.current.getCurrentTime();
+                // Sync position if difference is more than 3 seconds
+                if (Math.abs(localTime - time) > 3) {
+                    videoPlayerRef.current.seek(time);
+                }
+            }
+        });
+
+        socket.on('player-pause', () => {
+            if (videoPlayerRef.current) {
+                videoPlayerRef.current.pause();
+            }
+        });
+
+        socket.on('player-seek', ({ time }: { time: number }) => {
+            if (videoPlayerRef.current) {
+                videoPlayerRef.current.seek(time);
+            }
+        });
+
+        // Listen for status query from newly joined users
+        socket.on('get-playback-state', ({ requesterId }: { requesterId: string }) => {
+            if (videoPlayerRef.current) {
+                const time = videoPlayerRef.current.getCurrentTime();
+                socket.emit('send-playback-state', {
+                    requesterId,
+                    time,
+                    isPlaying: true // Assume active playing state to request matching status
+                });
+            }
+        });
+
+        // Listen for status response when we join
+        socket.on('receive-playback-state', ({ time, isPlaying }: { time: number, isPlaying: boolean }) => {
+            if (videoPlayerRef.current) {
+                videoPlayerRef.current.seek(time);
+                if (isPlaying) {
+                    videoPlayerRef.current.play();
+                } else {
+                    videoPlayerRef.current.pause();
+                }
+            }
+        });
+
+        // Request initial state synchronization from other members
+        socket.emit('request-sync');
+
+        return () => {
+            socket.disconnect();
+            socketRef.current = null;
+        };
+    }, [roomId, user]);
 
     // Track Watch History
     useEffect(() => {
@@ -441,11 +511,27 @@ export const MovieDetail: React.FC = () => {
     const handleSendPartyMessage = (e: React.FormEvent) => {
         e.preventDefault();
         if (!partyInput.trim() || !user) return;
-        setPartyMessages(prev => [
-            ...prev,
-            { sender: user.username, text: partyInput.trim(), time: new Date(), isSelf: true }
-        ]);
+        if (roomId && socketRef.current) {
+            socketRef.current.emit('send-message', { text: partyInput.trim() });
+        } else {
+            setPartyMessages(prev => [
+                ...prev,
+                { sender: user.username, text: partyInput.trim(), time: new Date(), isSelf: true }
+            ]);
+        }
         setPartyInput('');
+    };
+
+    const handleSocketPlay = (currentTime: number) => {
+        if (roomId && socketRef.current) {
+            socketRef.current.emit('player-play', { time: currentTime });
+        }
+    };
+
+    const handleSocketSeek = (time: number) => {
+        if (roomId && socketRef.current) {
+            socketRef.current.emit('player-seek', { time });
+        }
     };
 
     // Comments submission
@@ -566,6 +652,9 @@ export const MovieDetail: React.FC = () => {
         currentTimeRef.current = currentTime;
         if (duration) episodeDurationRef.current = duration;
         saveProgressNow();
+        if (roomId && socketRef.current) {
+            socketRef.current.emit('player-pause');
+        }
     };
 
     return (
@@ -587,11 +676,14 @@ export const MovieDetail: React.FC = () => {
                             renderLockOverlay(requiredPlan as 'Standard' | 'VIP')
                         ) : currentEpisode ? (
                              <VideoPlayer
+                                ref={videoPlayerRef}
                                 episode={currentEpisode}
                                 posterUrl={movie.poster_url?.startsWith('http') ? movie.poster_url : `${imageDomain}/uploads/movies/${movie.poster_url || movie.thumb_url}`}
                                 initialTime={initialTime}
                                 onTimeUpdate={handleTimeUpdate}
                                 onPause={handlePause}
+                                onPlay={handleSocketPlay}
+                                onSeek={handleSocketSeek}
                                 onNextEpisode={handleNextEpisode}
                                 hasNextEpisode={hasNextEpisode()}
                             />
@@ -726,8 +818,19 @@ export const MovieDetail: React.FC = () => {
                                                     : 'bg-transparent border-transparent text-zinc-400 hover:text-white'
                                             }`}
                                         >
+                                            <MessageSquare size={12} className="inline mr-1" />
+                                            Trò chuyện
+                                        </button>
+                                        <button
+                                            onClick={() => setRightPanelTab('members')}
+                                            className={`text-xs font-headline font-extrabold uppercase py-1.5 px-3 rounded-lg border transition ${
+                                                rightPanelTab === 'members'
+                                                    ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                                                    : 'bg-transparent border-transparent text-zinc-400 hover:text-white'
+                                            }`}
+                                        >
                                             <Users size={12} className="inline mr-1" />
-                                            Xem chung
+                                            Thành viên ({roomMembers.length})
                                         </button>
                                         <button
                                             onClick={() => setRightPanelTab('episodes')}
@@ -818,8 +921,30 @@ export const MovieDetail: React.FC = () => {
                                             </button>
                                         </form>
                                     </>
+                                ) : rightPanelTab === 'members' ? (
+                                    /* Tab 2: Members list */
+                                    <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                                        <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-2">Thành viên trực tuyến ({roomMembers.length})</div>
+                                        {roomMembers.map((member, idx) => (
+                                            <div key={idx} className="flex items-center gap-2.5 p-2 rounded-xl bg-white/5 border border-white/5">
+                                                <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-800 flex items-center justify-center text-xs font-bold text-primary">
+                                                    {member.avatar ? (
+                                                        <img src={member.avatar} alt={member.username} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        member.username.charAt(0).toUpperCase()
+                                                    )}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <span className="text-xs font-bold text-white block truncate">@{member.username}</span>
+                                                    <span className="text-[9px] text-emerald-400 flex items-center gap-1">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Trực tuyến
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 ) : (
-                                    /* Tab 2: Episodes selector during party */
+                                    /* Tab 3: Episodes selector during party */
                                     <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
                                         {validServers.length > 0 ? (
                                             <EpisodeList

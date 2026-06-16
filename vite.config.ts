@@ -12,6 +12,12 @@ export default defineConfig({
         target: 'http://localhost:7860',
         changeOrigin: true,
         secure: false,
+      },
+      '/socket.io': {
+        target: 'http://localhost:7860',
+        ws: true,
+        changeOrigin: true,
+        secure: false,
       }
     }
   }

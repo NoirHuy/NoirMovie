@@ -11,6 +11,7 @@ import { promisify } from 'util';
 import https from 'https';
 import http from 'http';
 import { URL } from 'url';
+import { Server } from 'socket.io';
 
 dns.setDefaultResultOrder('ipv4first');
 dotenv.config();
@@ -903,6 +904,165 @@ app.get('*', (req, res) => {
 });
 
 const PORT = process.env.PORT || 7860;
-app.listen(PORT, () => {
+const server = http.createServer(app);
+
+// Setup Socket.io
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
+// Track rooms and their participants
+// roomsMap: roomId -> Map(socketId -> { username, avatar })
+const roomsMap = new Map();
+
+io.on('connection', (socket) => {
+  let currentRoomId = null;
+  let currentUserInfo = null;
+
+  socket.on('join-room', ({ roomId, username, avatar }) => {
+    currentRoomId = roomId;
+    currentUserInfo = { username, avatar };
+
+    socket.join(roomId);
+
+    if (!roomsMap.has(roomId)) {
+      roomsMap.set(roomId, new Map());
+    }
+    roomsMap.get(roomId).set(socket.id, currentUserInfo);
+
+    // Broadcast system message: user joined
+    io.to(roomId).emit('message', {
+      _id: `sys-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      sender: 'Hệ thống',
+      text: `${username} đã tham gia phòng.`,
+      isSystem: true,
+      time: new Date()
+    });
+
+    // Send the current list of participants to everyone in the room
+    const participants = Array.from(roomsMap.get(roomId).values());
+    io.to(roomId).emit('room-members', participants);
+  });
+
+  socket.on('send-message', ({ text }) => {
+    if (currentRoomId && currentUserInfo) {
+      io.to(currentRoomId).emit('message', {
+        _id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        sender: currentUserInfo.username,
+        avatar: currentUserInfo.avatar,
+        text: text,
+        time: new Date()
+      });
+    }
+  });
+
+  // Media sync events
+  socket.on('player-play', ({ time }) => {
+    if (currentRoomId && currentUserInfo) {
+      // Broadcast play event to all other clients in the room
+      socket.to(currentRoomId).emit('player-play', { 
+        time, 
+        sender: currentUserInfo.username 
+      });
+      // Also send a system message to keep everyone updated
+      io.to(currentRoomId).emit('message', {
+        _id: `sys-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        sender: 'Hệ thống',
+        text: `${currentUserInfo.username} đã bấm phát phim.`,
+        isSystem: true,
+        time: new Date()
+      });
+    }
+  });
+
+  socket.on('player-pause', () => {
+    if (currentRoomId && currentUserInfo) {
+      // Broadcast pause event to all other clients
+      socket.to(currentRoomId).emit('player-pause', { 
+        sender: currentUserInfo.username 
+      });
+      io.to(currentRoomId).emit('message', {
+        _id: `sys-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        sender: 'Hệ thống',
+        text: `${currentUserInfo.username} đã tạm dừng phim.`,
+        isSystem: true,
+        time: new Date()
+      });
+    }
+  });
+
+  socket.on('player-seek', ({ time }) => {
+    if (currentRoomId && currentUserInfo) {
+      // Broadcast seek event to all other clients
+      socket.to(currentRoomId).emit('player-seek', { 
+        time, 
+        sender: currentUserInfo.username 
+      });
+      const mins = Math.floor(time / 60);
+      const secs = Math.floor(time % 60);
+      const timeStr = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      io.to(currentRoomId).emit('message', {
+        _id: `sys-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        sender: 'Hệ thống',
+        text: `${currentUserInfo.username} đã tua phim đến ${timeStr}.`,
+        isSystem: true,
+        time: new Date()
+      });
+    }
+  });
+
+  // Client requests sync state from other users in the room (e.g. when joining)
+  socket.on('request-sync', () => {
+    if (currentRoomId) {
+      // Find another socket ID in the same room
+      const roomSockets = io.sockets.adapter.rooms.get(currentRoomId);
+      if (roomSockets) {
+        for (const otherSocketId of roomSockets) {
+          if (otherSocketId !== socket.id) {
+            // Send request to that specific client
+            io.to(otherSocketId).emit('get-playback-state', { requesterId: socket.id });
+            break;
+          }
+        }
+      }
+    }
+  });
+
+  // Response with current playback state to be sent to requester
+  socket.on('send-playback-state', ({ requesterId, time, isPlaying }) => {
+    io.to(requesterId).emit('receive-playback-state', { time, isPlaying });
+  });
+
+  socket.on('disconnect', () => {
+    if (currentRoomId && currentUserInfo) {
+      socket.leave(currentRoomId);
+      const room = roomsMap.get(currentRoomId);
+      if (room) {
+        room.delete(socket.id);
+        
+        // Broadcast system message
+        io.to(currentRoomId).emit('message', {
+          _id: `sys-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          sender: 'Hệ thống',
+          text: `${currentUserInfo.username} đã rời phòng.`,
+          isSystem: true,
+          time: new Date()
+        });
+
+        if (room.size === 0) {
+          roomsMap.delete(currentRoomId);
+        } else {
+          // Send updated member list
+          io.to(currentRoomId).emit('room-members', Array.from(room.values()));
+        }
+      }
+    }
+  });
+});
+
+server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
