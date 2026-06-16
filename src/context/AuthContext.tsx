@@ -26,7 +26,7 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<void>;
   loginWithGoogle: (credential: string) => Promise<void>;
-  loginWithFacebook: (accessToken: string) => Promise<void>;
+  loginWithFacebook: (accessToken: string, profile: any) => Promise<void>;
   logout: () => void;
   watchHistory: HistoryItem[];
   addToHistory: (movie: any, episodeSlug?: string, currentTime?: number, duration?: number) => Promise<void>;
@@ -183,13 +183,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const loginWithFacebook = async (accessToken: string) => {
+  const loginWithFacebook = async (accessToken: string, profile: any) => {
     const response = await fetch('/api/auth/facebook', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ accessToken })
+      body: JSON.stringify({ accessToken, profile })
     });
 
     const data = await response.json();

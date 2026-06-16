@@ -202,16 +202,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     FB.login((response: any) => {
       if (response.authResponse) {
         const accessToken = response.authResponse.accessToken;
-        loginWithFacebook(accessToken)
-          .then(() => {
-            onClose();
-          })
-          .catch((err: any) => {
-            setError(err.message || 'Đăng nhập Facebook thất bại.');
-          })
-          .finally(() => {
-            setLoading(false);
-          });
+        
+        // Fetch user profile data client-side in the browser
+        FB.api('/me', { fields: 'id,name,email,picture.type(large),first_name,last_name,locale' }, (profileResponse: any) => {
+          const profileData = (!profileResponse || profileResponse.error) ? null : profileResponse;
+          
+          loginWithFacebook(accessToken, profileData)
+            .then(() => {
+              onClose();
+            })
+            .catch((err: any) => {
+              setError(err.message || 'Đăng nhập Facebook thất bại.');
+            })
+            .finally(() => {
+              setLoading(false);
+            });
+        });
       } else {
         setLoading(false);
         setError('Đăng nhập Facebook bị hủy hoặc thất bại.');

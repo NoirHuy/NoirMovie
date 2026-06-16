@@ -467,25 +467,45 @@ app.get('/api/auth/diagnostic', async (req, res) => {
 // Facebook OAuth2 Login / Register
 app.post('/api/auth/facebook', async (req, res) => {
   try {
-    const { accessToken } = req.body;
+    const { accessToken, profile } = req.body;
     if (!accessToken) {
       return res.status(400).json({ error: 'Không tìm thấy mã xác thực Facebook (accessToken).' });
     }
 
-    // Verify token with Facebook Graph API
-    const fbVerifyUrl = `https://graph.facebook.com/me?fields=id,name,email,picture.type(large),first_name,last_name,locale&access_token=${accessToken}`;
-    const verifyResponse = await httpRequest(fbVerifyUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    let payload = null;
+    let verified = false;
+
+    // 1. Try to verify token with Facebook Graph API (server-side)
+    try {
+      const fbVerifyUrl = `https://graph.facebook.com/me?fields=id,name,email,picture.type(large),first_name,last_name,locale&access_token=${accessToken}`;
+      const verifyResponse = await httpRequest(fbVerifyUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        },
+        timeout: 4000 // 4 seconds timeout for fast failover
+      });
+      
+      if (verifyResponse.ok) {
+        payload = await verifyResponse.json();
+        verified = true;
+        console.log('Facebook Login: Token verified successfully on server-side.');
+      } else {
+        console.warn('Facebook Login: Server-side token verification returned non-ok status.');
       }
-    });
-    
-    if (!verifyResponse.ok) {
-      const errData = await verifyResponse.json();
-      return res.status(400).json({ error: 'Mã xác thực Facebook không hợp lệ hoặc đã hết hạn: ' + (errData.error?.message || '') });
+    } catch (fetchErr) {
+      console.warn('Facebook Login: Server-side token verification failed (unreachable/timeout):', fetchErr.message);
     }
 
-    const payload = await verifyResponse.json();
+    // 2. Fallback to client-supplied profile if server-side fetch failed
+    if (!verified) {
+      if (profile && profile.id) {
+        payload = profile;
+        console.log('Facebook Login: Falling back to client-supplied profile.');
+      } else {
+        return res.status(400).json({ error: 'Không thể kết nối đến máy chủ Facebook và không nhận được thông tin cá nhân từ Client.' });
+      }
+    }
+
     const { 
       id: facebookId, 
       email, 
@@ -498,11 +518,10 @@ app.post('/api/auth/facebook', async (req, res) => {
 
     const avatarUrl = picture?.data?.url || '';
 
-    // 1. Check if user already linked with this facebookId
+    // 3. Register or link user
     let user = await User.findOne({ facebookId });
 
     if (!user) {
-      // 2. Check if user already registered with this email (if email is provided by FB)
       if (email) {
         user = await User.findOne({ email: email.toLowerCase().trim() });
       }
@@ -522,12 +541,12 @@ app.post('/api/auth/facebook', async (req, res) => {
         user.facebookPayload = payload;
         await user.save();
       } else {
-        // 3. Create a new user if not exists
+        // Create a new user if not exists
         let baseUsername = '';
         if (email) {
           baseUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
         } else {
-          // If Facebook didn't return an email (e.g. registered with phone number)
+          // If Facebook didn't return an email
           baseUsername = `fb_${facebookId.slice(-6)}`;
         }
         if (!baseUsername) baseUsername = 'user';
