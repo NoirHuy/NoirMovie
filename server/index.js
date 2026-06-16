@@ -6,7 +6,9 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import dns from 'dns';
 
+dns.setDefaultResultOrder('ipv4first');
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -327,7 +329,11 @@ app.post('/api/auth/facebook', async (req, res) => {
 
     // Verify token with Facebook Graph API
     const fbVerifyUrl = `https://graph.facebook.com/me?fields=id,name,email,picture.type(large),first_name,last_name,locale&access_token=${accessToken}`;
-    const verifyResponse = await fetch(fbVerifyUrl);
+    const verifyResponse = await fetch(fbVerifyUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    });
     
     if (!verifyResponse.ok) {
       const errData = await verifyResponse.json();
@@ -450,6 +456,7 @@ app.post('/api/auth/facebook', async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('Lỗi đăng nhập Facebook chi tiết:', error);
     res.status(500).json({ error: 'Lỗi máy chủ khi đăng nhập Facebook: ' + error.message });
   }
 });
