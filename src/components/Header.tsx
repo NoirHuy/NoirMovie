@@ -12,6 +12,8 @@ export const Header: React.FC = () => {
 
     const [categories, setCategories] = useState([]);
     const [countries, setCountries] = useState([]);
+    const [suggestions, setSuggestions] = useState<any[]>([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
 
     const { user, logout } = useAuth();
 
@@ -34,17 +36,63 @@ export const Header: React.FC = () => {
         fetchNavData();
     }, []);
 
+    // Debounce autocomplete search suggestions
+    useEffect(() => {
+        const delayDebounceFn = setTimeout(async () => {
+            const trimmed = keyword.trim();
+            if (trimmed.length >= 2) {
+                try {
+                    const data = await apiService.searchMovies(trimmed);
+                    if (data.status === 'success' && data.data && data.data.items) {
+                        setSuggestions(data.data.items.slice(0, 5));
+                        setShowSuggestions(true);
+                    } else {
+                        setSuggestions([]);
+                    }
+                } catch (error) {
+                    console.error('Failed to fetch suggestions', error);
+                    setSuggestions([]);
+                }
+            } else {
+                setSuggestions([]);
+                setShowSuggestions(false);
+            }
+        }, 300);
+
+        return () => clearTimeout(delayDebounceFn);
+    }, [keyword]);
+
+    // Handle clicking outside of suggestions dropdown
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            const target = event.target as HTMLElement;
+            if (!target.closest('.search-box-container')) {
+                setShowSuggestions(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
         if (keyword.trim()) {
             navigate(`/tim-kiem?keyword=${encodeURIComponent(keyword)}`);
             setKeyword('');
+            setShowSuggestions(false);
         }
     };
 
     const handleLogout = () => {
         logout();
         navigate('/');
+    };
+
+    const getThumbUrl = (url: string) => {
+        if (!url) return 'https://via.placeholder.com/120x180?text=No+Image';
+        if (url.startsWith('http')) return url;
+        return `https://img.ophim.live/uploads/movies/${url}`;
     };
 
     return (
@@ -107,18 +155,73 @@ export const Header: React.FC = () => {
 
                     {/* Right: Search Box, Notifications, User Auth */}
                     <div className="flex items-center gap-6">
-                        {/* Search bar */}
-                        <form onSubmit={handleSearch} className="hidden md:flex items-center bg-surface-container rounded-full px-4 py-1.5 border border-white/10 group focus-within:border-primary transition-colors">
+                        {/* Search bar with Autocomplete */}
+                        <form onSubmit={handleSearch} className="search-box-container relative hidden md:flex items-center bg-surface-container rounded-full px-4 py-1.5 border border-white/10 group focus-within:border-primary transition-colors">
                             <input
                                 type="text"
                                 placeholder="Tìm kiếm phim..."
                                 className="bg-transparent border-none outline-none text-sm placeholder:text-on-surface-variant/50 w-48 text-on-surface focus:ring-0 p-0"
                                 value={keyword}
                                 onChange={(e) => setKeyword(e.target.value)}
+                                onFocus={() => {
+                                    if (keyword.trim().length >= 2 && suggestions.length > 0) {
+                                        setShowSuggestions(true);
+                                    }
+                                }}
                             />
                             <button type="submit" className="text-on-surface-variant group-focus-within:text-primary hover:text-primary transition-colors cursor-pointer ml-2">
                                 <Search size={18} />
                             </button>
+
+                            {/* Autocomplete Dropdown */}
+                            {showSuggestions && suggestions.length > 0 && (
+                                <div className="absolute top-full right-0 mt-3 w-80 glass-panel rounded-2xl border border-white/10 shadow-2xl p-4 z-50 text-left flex flex-col gap-3 animate-fade-in">
+                                    <div className="text-[10px] uppercase tracking-widest text-on-surface-variant/50 font-bold px-1">
+                                        Danh sách phim
+                                    </div>
+                                    <div className="flex flex-col gap-1 max-h-[300px] overflow-y-auto custom-scrollbar">
+                                        {suggestions.map((movie) => (
+                                            <div 
+                                                key={movie._id}
+                                                onClick={() => {
+                                                    navigate(`/phim/${movie.slug}`);
+                                                    setShowSuggestions(false);
+                                                    setKeyword('');
+                                                }}
+                                                className="flex items-center gap-3 hover:bg-primary/10 p-1.5 rounded-xl transition-all cursor-pointer group"
+                                            >
+                                                <img 
+                                                    src={getThumbUrl(movie.thumb_url)} 
+                                                    alt={movie.name}
+                                                    className="w-10 h-14 object-cover rounded-lg bg-surface-container-high flex-shrink-0"
+                                                    onError={(e) => {
+                                                        (e.target as HTMLImageElement).src = 'https://via.placeholder.com/120x180?text=No+Image';
+                                                    }}
+                                                />
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="text-xs font-bold text-white group-hover:text-primary transition-colors truncate">
+                                                        {movie.name}
+                                                    </div>
+                                                    <div className="text-[10px] text-on-surface-variant/70 truncate">
+                                                        {movie.origin_name}
+                                                    </div>
+                                                    <div className="text-[9px] text-on-surface-variant/50 mt-0.5 font-medium">
+                                                        {movie.year} • {movie.episode_current || 'HD'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="border-t border-white/5 pt-2 text-center">
+                                        <button 
+                                            type="submit"
+                                            className="w-full text-center text-xs font-bold text-primary hover:underline py-1 cursor-pointer bg-transparent border-none outline-none"
+                                        >
+                                            Toàn bộ kết quả
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </form>
 
                         {/* User action */}
