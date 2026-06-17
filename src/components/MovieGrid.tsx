@@ -73,6 +73,7 @@ const MovieCard: React.FC<{ movie: Movie }> = ({ movie }) => {
         vid.muted = true;
         vid.loop = true;
         vid.playsInline = true;
+        vid.setAttribute("referrerpolicy", "no-referrer"); // bypass GCS 403 from huggingface.co
         vid.src = videoUrl;
 
         const play = () => {
@@ -174,7 +175,8 @@ const MovieCard: React.FC<{ movie: Movie }> = ({ movie }) => {
                 <div className="absolute top-0 z-50 rounded-2xl overflow-hidden shadow-[0_25px_60px_rgba(0,0,0,0.95)] border border-white/10 animate-fade-in-scale" style={{ ...offsetStyle, background: "#0f0e11" }} onMouseEnter={() => { if (timerRef.current) clearTimeout(timerRef.current); setHoverActive(true); }} onMouseLeave={handleMouseLeave}>
                     <div className="relative aspect-video w-full overflow-hidden bg-black">
                         <img src={getThumbUrl(movie.thumb_url)} alt={movie.name} className="absolute inset-0 w-full h-full object-cover" />
-                        <video ref={videoCallbackRef} muted playsInline loop className={`absolute inset-0 w-full h-full object-cover z-10 transition-opacity duration-500 ${loadingVideo ? "opacity-0" : "opacity-100"}`} />
+                        {/* eslint-disable-next-line */}
+                        <video ref={videoCallbackRef} muted playsInline loop {...{referrerpolicy: "no-referrer"} as any} className={`absolute inset-0 w-full h-full object-cover z-10 transition-opacity duration-500 ${loadingVideo ? "opacity-0" : "opacity-100"}`} />
                         <div className="absolute inset-0 bg-gradient-to-t from-[#0f0e11] via-black/20 to-transparent z-20" />
                         {movie.quality && <span className="absolute top-2.5 left-3 px-2 py-0.5 bg-primary text-white text-[9px] font-bold rounded-md z-30 shadow-md">{movie.quality}</span>}
                         {rating && <span className="absolute top-2.5 right-3 flex items-center gap-0.5 px-2 py-0.5 bg-black/70 text-amber-400 text-[10px] font-bold rounded-md z-30 backdrop-blur-sm"><Star size={9} fill="currentColor" /> {rating.toFixed(1)}</span>}
