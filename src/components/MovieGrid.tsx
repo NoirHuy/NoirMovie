@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Play, Bookmark, BookmarkCheck, Loader2, VolumeX, Star, Calendar, Film, Users } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -60,10 +60,46 @@ const MovieCard: React.FC<{ movie: Movie }> = ({ movie }) => {
     const [fetchingDetail, setFetchingDetail] = useState(false);
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const cardRef = useRef<HTMLDivElement>(null);
-    const videoRef = useRef<HTMLVideoElement>(null);
+    const videoRef = useRef<HTMLVideoElement | null>(null);
     const detailFetchedRef = useRef(false);
     const inWatchlist = isInWatchlist(movie.slug);
     const videoUrl = getPreviewVideo(movie.slug);
+
+    // Callback ref: fires the instant the <video> element mounts in the DOM.
+    // This avoids race conditions with useEffect which runs after the paint.
+    const videoCallbackRef = useCallback((vid: HTMLVideoElement | null) => {
+        videoRef.current = vid;
+        if (!vid) return;
+        vid.muted = true;
+        vid.loop = true;
+        vid.playsInline = true;
+        vid.src = videoUrl;
+
+        const play = () => {
+            vid.play()
+                .then(() => setLoadingVideo(false))
+                .catch(() => {
+                    // Some browsers block autoplay; retry after a short delay.
+                    setTimeout(() =>
+                        vid.play()
+                            .then(() => setLoadingVideo(false))
+                            .catch(() => setLoadingVideo(false))
+                    , 300);
+                });
+        };
+
+        if (vid.readyState >= 3) {
+            // Already buffered enough — play immediately.
+            play();
+        } else {
+            vid.addEventListener("canplay", play, { once: true });
+        }
+
+        vid.load();
+
+        // Fallback: hide spinner after 4 s regardless.
+        setTimeout(() => setLoadingVideo(false), 4000);
+    }, [videoUrl]);
 
     const prefetchDetail = useCallback(() => {
         if (detailFetchedRef.current || fetchingDetail) return;
@@ -108,23 +144,6 @@ const MovieCard: React.FC<{ movie: Movie }> = ({ movie }) => {
         if (videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime = 0; }
     }, []);
 
-    useEffect(() => {
-        if (!hoverActive || !videoRef.current) return;
-        const vid = videoRef.current;
-        vid.src = videoUrl;
-        vid.muted = true;
-        vid.loop = true;
-        vid.playsInline = true;
-        const tryPlay = () => {
-            vid.play().then(() => setLoadingVideo(false)).catch(() => {
-                setTimeout(() => vid.play().then(() => setLoadingVideo(false)).catch(() => setLoadingVideo(false)), 200);
-            });
-        };
-        vid.addEventListener("canplay", tryPlay, { once: true });
-        vid.load();
-        return () => vid.removeEventListener("canplay", tryPlay);
-    }, [hoverActive, videoUrl]);
-
     const handleWatchlistToggle = (e: React.MouseEvent) => {
         e.preventDefault(); e.stopPropagation();
         if (!user) { window.dispatchEvent(new CustomEvent("trigger-login-modal")); return; }
@@ -155,7 +174,7 @@ const MovieCard: React.FC<{ movie: Movie }> = ({ movie }) => {
                 <div className="absolute top-0 z-50 rounded-2xl overflow-hidden shadow-[0_25px_60px_rgba(0,0,0,0.95)] border border-white/10 animate-fade-in-scale" style={{ ...offsetStyle, background: "#0f0e11" }} onMouseEnter={() => { if (timerRef.current) clearTimeout(timerRef.current); setHoverActive(true); }} onMouseLeave={handleMouseLeave}>
                     <div className="relative aspect-video w-full overflow-hidden bg-black">
                         <img src={getThumbUrl(movie.thumb_url)} alt={movie.name} className="absolute inset-0 w-full h-full object-cover" />
-                        <video ref={videoRef} muted playsInline loop className={`absolute inset-0 w-full h-full object-cover z-10 transition-opacity duration-500 ${loadingVideo ? "opacity-0" : "opacity-100"}`} />
+                        <video ref={videoCallbackRef} muted playsInline loop className={`absolute inset-0 w-full h-full object-cover z-10 transition-opacity duration-500 ${loadingVideo ? "opacity-0" : "opacity-100"}`} />
                         <div className="absolute inset-0 bg-gradient-to-t from-[#0f0e11] via-black/20 to-transparent z-20" />
                         {movie.quality && <span className="absolute top-2.5 left-3 px-2 py-0.5 bg-primary text-white text-[9px] font-bold rounded-md z-30 shadow-md">{movie.quality}</span>}
                         {rating && <span className="absolute top-2.5 right-3 flex items-center gap-0.5 px-2 py-0.5 bg-black/70 text-amber-400 text-[10px] font-bold rounded-md z-30 backdrop-blur-sm"><Star size={9} fill="currentColor" /> {rating.toFixed(1)}</span>}
