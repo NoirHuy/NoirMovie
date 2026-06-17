@@ -32,12 +32,13 @@ interface MovieGridProps {
 }
 
 const getPreviewVideo = (slug: string) => {
+    // Use VideoJS and W3C CDN — these don't restrict by Referer unlike Google Storage
     const videos = [
-        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
-        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
-        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
-        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
-        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+        "https://vjs.zencdn.net/v/oceans.mp4",
+        "https://media.w3.org/2010/05/sintel/trailer.mp4",
+        "https://media.w3.org/2010/05/bunny/trailer.mp4",
+        "https://media.w3.org/2010/05/video/movie_300.mp4",
+        "https://vjs.zencdn.net/v/oceans.mp4",
     ];
     let hash = 0;
     for (let i = 0; i < slug.length; i++) hash = slug.charCodeAt(i) + ((hash << 5) - hash);
@@ -56,6 +57,7 @@ const MovieCard: React.FC<{ movie: Movie }> = ({ movie }) => {
     const [hoverActive, setHoverActive] = useState(false);
     const [offsetStyle, setOffsetStyle] = useState<React.CSSProperties>({});
     const [loadingVideo, setLoadingVideo] = useState(true);
+    const [videoFailed, setVideoFailed] = useState(false);  // true → show Ken Burns fallback
     const [detail, setDetail] = useState<MovieDetail | null>(null);
     const [fetchingDetail, setFetchingDetail] = useState(false);
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -70,36 +72,33 @@ const MovieCard: React.FC<{ movie: Movie }> = ({ movie }) => {
     const videoCallbackRef = useCallback((vid: HTMLVideoElement | null) => {
         videoRef.current = vid;
         if (!vid) return;
+        setVideoFailed(false);
         vid.muted = true;
         vid.loop = true;
         vid.playsInline = true;
-        vid.setAttribute("referrerpolicy", "no-referrer"); // bypass GCS 403 from huggingface.co
+        vid.setAttribute("referrerpolicy", "no-referrer");
         vid.src = videoUrl;
 
+        const onPlay = () => setLoadingVideo(false);
+        const onError = () => { setLoadingVideo(false); setVideoFailed(true); };
+
         const play = () => {
-            vid.play()
-                .then(() => setLoadingVideo(false))
-                .catch(() => {
-                    // Some browsers block autoplay; retry after a short delay.
-                    setTimeout(() =>
-                        vid.play()
-                            .then(() => setLoadingVideo(false))
-                            .catch(() => setLoadingVideo(false))
-                    , 300);
-                });
+            vid.play().then(onPlay).catch(() => {
+                setTimeout(() => vid.play().then(onPlay).catch(onError), 300);
+            });
         };
 
         if (vid.readyState >= 3) {
-            // Already buffered enough — play immediately.
             play();
         } else {
             vid.addEventListener("canplay", play, { once: true });
+            vid.addEventListener("error", onError, { once: true });
         }
 
         vid.load();
 
-        // Fallback: hide spinner after 4 s regardless.
-        setTimeout(() => setLoadingVideo(false), 4000);
+        // Fallback: if still loading after 5s, switch to Ken Burns animation
+        setTimeout(() => { if (videoRef.current === vid) { setLoadingVideo(false); setVideoFailed(true); } }, 5000);
     }, [videoUrl]);
 
     const prefetchDetail = useCallback(() => {
@@ -142,6 +141,7 @@ const MovieCard: React.FC<{ movie: Movie }> = ({ movie }) => {
         if (timerRef.current) clearTimeout(timerRef.current);
         setHoverActive(false);
         setLoadingVideo(true);
+        setVideoFailed(false);
         if (videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime = 0; }
     }, []);
 
@@ -174,14 +174,24 @@ const MovieCard: React.FC<{ movie: Movie }> = ({ movie }) => {
             {hoverActive && (
                 <div className="absolute top-0 z-50 rounded-2xl overflow-hidden shadow-[0_25px_60px_rgba(0,0,0,0.95)] border border-white/10 animate-fade-in-scale" style={{ ...offsetStyle, background: "#0f0e11" }} onMouseEnter={() => { if (timerRef.current) clearTimeout(timerRef.current); setHoverActive(true); }} onMouseLeave={handleMouseLeave}>
                     <div className="relative aspect-video w-full overflow-hidden bg-black">
-                        <img src={getThumbUrl(movie.thumb_url)} alt={movie.name} className="absolute inset-0 w-full h-full object-cover" />
-                        {/* eslint-disable-next-line */}
-                        <video ref={videoCallbackRef} muted playsInline loop {...{referrerpolicy: "no-referrer"} as any} className={`absolute inset-0 w-full h-full object-cover z-10 transition-opacity duration-500 ${loadingVideo ? "opacity-0" : "opacity-100"}`} />
+                        {/* Ken Burns animated thumbnail — always underneath; also shown as fallback when video fails */}
+                        <img
+                            src={getThumbUrl(movie.thumb_url)}
+                            alt={movie.name}
+                            className="absolute inset-0 w-full h-full object-cover"
+                            style={videoFailed ? { animation: "kenBurns 8s ease-in-out infinite alternate", transformOrigin: "center center" } : {}}
+                        />
+                        {/* Hidden video element — only shown when successfully playing */}
+                        {!videoFailed && (
+                            /* eslint-disable-next-line */
+                            <video ref={videoCallbackRef} muted playsInline loop {...{referrerpolicy: "no-referrer"} as any} className={`absolute inset-0 w-full h-full object-cover z-10 transition-opacity duration-700 ${loadingVideo ? "opacity-0" : "opacity-100"}`} />
+                        )}
                         <div className="absolute inset-0 bg-gradient-to-t from-[#0f0e11] via-black/20 to-transparent z-20" />
                         {movie.quality && <span className="absolute top-2.5 left-3 px-2 py-0.5 bg-primary text-white text-[9px] font-bold rounded-md z-30 shadow-md">{movie.quality}</span>}
                         {rating && <span className="absolute top-2.5 right-3 flex items-center gap-0.5 px-2 py-0.5 bg-black/70 text-amber-400 text-[10px] font-bold rounded-md z-30 backdrop-blur-sm"><Star size={9} fill="currentColor" /> {rating.toFixed(1)}</span>}
                         <span className="absolute bottom-2.5 right-3 p-1.5 bg-black/60 rounded-full text-zinc-400 z-30" title="Dang phat tat tieng"><VolumeX size={11} /></span>
-                        {loadingVideo && <div className="absolute inset-0 flex items-center justify-center z-30"><Loader2 className="animate-spin text-primary" size={28} /></div>}
+                        {/* Loading spinner — only show while video is loading and hasn't failed yet */}
+                        {loadingVideo && !videoFailed && <div className="absolute inset-0 flex items-center justify-center z-30"><Loader2 className="animate-spin text-primary" size={28} /></div>}
                         <div className="absolute bottom-3 left-3 right-3 z-30">
                             <h4 className="font-headline font-black text-white text-base leading-tight line-clamp-1 drop-shadow-lg">{movie.name}</h4>
                             <p className="text-[11px] text-zinc-400 font-medium truncate">{movie.origin_name}</p>
