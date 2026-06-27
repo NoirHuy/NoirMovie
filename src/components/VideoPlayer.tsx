@@ -293,6 +293,18 @@ export const VideoPlayer = React.forwardRef<VideoPlayerRef, VideoPlayerProps>(({
         }
     };
 
+    const handleVideoAreaClick = (e: React.MouseEvent) => {
+        if ((e.target as HTMLElement).closest('.controls-bar-container')) {
+            return;
+        }
+        const isMobile = window.innerWidth < 768 || 'ontouchstart' in window;
+        if (isMobile) {
+            setShowControls(prev => !prev);
+        } else {
+            togglePlay();
+        }
+    };
+
     const seekOffset = (seconds: number) => {
         if (!videoRef.current) return;
         const targetTime = Math.min(Math.max(videoRef.current.currentTime + seconds, 0), duration);
@@ -340,25 +352,113 @@ export const VideoPlayer = React.forwardRef<VideoPlayerRef, VideoPlayerProps>(({
     };
 
     const toggleFullscreen = () => {
-        if (!containerRef.current) return;
-        if (!document.fullscreenElement) {
-            containerRef.current.requestFullscreen()
-                .then(() => setIsFullscreen(true))
-                .catch(err => console.error(err));
+        const container = containerRef.current;
+        const video = videoRef.current;
+        if (!container) return;
+
+        const isFs = !!(
+            document.fullscreenElement || 
+            (document as any).webkitFullscreenElement || 
+            (document as any).mozFullScreenElement || 
+            (document as any).msFullscreenElement
+        );
+
+        if (!isFs) {
+            if (container.requestFullscreen) {
+                container.requestFullscreen()
+                    .then(() => setIsFullscreen(true))
+                    .catch(err => {
+                        console.warn("Standard FS failed, trying video direct FS", err);
+                        if (video && (video as any).webkitEnterFullscreen) {
+                            try {
+                                (video as any).webkitEnterFullscreen();
+                                setIsFullscreen(true);
+                            } catch (e) {
+                                console.error(e);
+                            }
+                        }
+                    });
+            } else if ((container as any).webkitRequestFullscreen) {
+                try {
+                    (container as any).webkitRequestFullscreen();
+                    setIsFullscreen(true);
+                } catch (err) {
+                    console.error("webkitRequestFullscreen failed, trying video fallback", err);
+                    if (video && (video as any).webkitEnterFullscreen) {
+                        try {
+                            (video as any).webkitEnterFullscreen();
+                            setIsFullscreen(true);
+                        } catch (e) {
+                            console.error(e);
+                        }
+                    }
+                }
+            } else if (video && (video as any).webkitEnterFullscreen) {
+                try {
+                    (video as any).webkitEnterFullscreen();
+                    setIsFullscreen(true);
+                } catch (err) {
+                    console.error("webkitEnterFullscreen failed", err);
+                }
+            }
         } else {
-            document.exitFullscreen()
-                .then(() => setIsFullscreen(false))
-                .catch(err => console.error(err));
+            if (document.exitFullscreen) {
+                document.exitFullscreen()
+                    .then(() => setIsFullscreen(false))
+                    .catch(err => console.error(err));
+            } else if ((document as any).webkitExitFullscreen) {
+                (document as any).webkitExitFullscreen();
+                setIsFullscreen(false);
+            } else if ((document as any).mozCancelFullScreen) {
+                (document as any).mozCancelFullScreen();
+                setIsFullscreen(false);
+            } else if ((document as any).msExitFullscreen) {
+                (document as any).msExitFullscreen();
+                setIsFullscreen(false);
+            }
         }
     };
 
     useEffect(() => {
+        const video = videoRef.current;
         const handleFsChange = () => {
-            setIsFullscreen(!!document.fullscreenElement);
+            const isFs = !!(
+                document.fullscreenElement || 
+                (document as any).webkitFullscreenElement || 
+                (document as any).mozFullScreenElement || 
+                (document as any).msFullscreenElement
+            );
+            setIsFullscreen(isFs);
         };
+        const handleWebKitBeginFS = () => {
+            setIsFullscreen(true);
+        };
+        const handleWebKitEndFS = () => {
+            setIsFullscreen(false);
+        };
+
         document.addEventListener('fullscreenchange', handleFsChange);
-        return () => document.removeEventListener('fullscreenchange', handleFsChange);
-    }, []);
+        document.addEventListener('webkitfullscreenchange', handleFsChange);
+        document.addEventListener('mozfullscreenchange', handleFsChange);
+        document.addEventListener('MSFullscreenChange', handleFsChange);
+
+        if (video) {
+            video.addEventListener('webkitbeginfullscreen', handleWebKitBeginFS);
+            video.addEventListener('webkitendfullscreen', handleWebKitEndFS);
+        }
+
+        return () => {
+            document.removeEventListener('fullscreenchange', handleFsChange);
+            document.removeEventListener('webkitfullscreenchange', handleFsChange);
+            document.removeEventListener('mozfullscreenchange', handleFsChange);
+            document.removeEventListener('MSFullscreenChange', handleFsChange);
+
+            if (video) {
+                video.removeEventListener('webkitbeginfullscreen', handleWebKitBeginFS);
+                video.removeEventListener('webkitendfullscreen', handleWebKitEndFS);
+            }
+        };
+    }, [useIframe]);
 
     // Keyboard Shortcuts Navigation
     useEffect(() => {
@@ -502,7 +602,7 @@ export const VideoPlayer = React.forwardRef<VideoPlayerRef, VideoPlayerProps>(({
                 {useIframe ? (
                     <iframe
                         src={episode.link_embed}
-                        className="video-iframe"
+                        className="video-iframe absolute inset-0 w-full h-full border-0"
                         allowFullScreen
                         frameBorder="0"
                         title={`Tập ${episode.name}`}
@@ -514,7 +614,7 @@ export const VideoPlayer = React.forwardRef<VideoPlayerRef, VideoPlayerProps>(({
                             className="video-element w-full h-full object-contain"
                             poster={posterUrl}
                             playsInline
-                            onClick={togglePlay}
+                            onClick={handleVideoAreaClick}
                             onTimeUpdate={handleTimeUpdateInternal}
                             onLoadedMetadata={handleLoadedMetadata}
                             onWaiting={() => setIsLoading(true)}
@@ -530,179 +630,200 @@ export const VideoPlayer = React.forwardRef<VideoPlayerRef, VideoPlayerProps>(({
 
                         {/* Custom Controls Overlay */}
                         <div 
-                            onClick={togglePlay}
-                            className={`absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent flex flex-col justify-end px-4 md:px-6 pb-4 md:pb-6 pt-10 z-20 transition-opacity duration-300 cursor-pointer ${
+                            onClick={handleVideoAreaClick}
+                            className={`absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent flex flex-col justify-between px-4 md:px-6 pb-4 md:pb-6 pt-6 z-20 transition-opacity duration-300 cursor-pointer ${
                                 showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
                             }`}
                         >
-                            {/* Prevent clicks on the control bar itself from toggling play/pause */}
-                            <div className="w-full flex flex-col justify-end cursor-default" onClick={(e) => e.stopPropagation()}>
-                            {/* Seekbar Time indicators (displayed ABOVE seekbar) */}
-                            <div className="flex justify-between items-center text-xs font-medium text-white/95 px-1 mb-2">
-                                <span>{formatTime(currentTime)}</span>
-                                <span>{formatTime(duration)}</span>
-                            </div>
+                            {/* Top spacer or metadata */}
+                            <div className="w-full pointer-events-none"></div>
 
-                            {/* Full-width Timeline / Seekbar */}
-                            <div className="relative w-full group/timeline mb-4 flex items-center">
-                                <input 
-                                    type="range" 
-                                    min="0" 
-                                    max={duration || 100} 
-                                    value={currentTime} 
-                                    onChange={handleSeek}
-                                    className="w-full h-1.5 rounded-lg appearance-none cursor-pointer focus:outline-none accent-primary"
-                                    style={{
-                                        background: `linear-gradient(to right, #ff5451 0%, #ff5451 ${(currentTime / (duration || 1)) * 100}%, rgba(255, 255, 255, 0.15) ${(currentTime / (duration || 1)) * 100}%, rgba(255, 255, 255, 0.15) 100%)`
+                            {/* Center Play/Pause Button for Touch/Mobile screens */}
+                            <div className="flex items-center justify-center pointer-events-none">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        togglePlay();
                                     }}
-                                />
+                                    className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-black/60 hover:bg-black/80 border border-white/20 hover:border-white text-white flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-2xl pointer-events-auto cursor-pointer"
+                                    title={isPlaying ? "Tạm dừng" : "Phát"}
+                                >
+                                    {isPlaying ? (
+                                        <Pause className="w-6 h-6 md:w-8 md:h-8 text-white" fill="currentColor" />
+                                    ) : (
+                                        <Play className="w-6 h-6 md:w-8 md:h-8 text-white ml-1" fill="currentColor" />
+                                    )}
+                                </button>
                             </div>
 
-                            {/* Row: Control Buttons */}
-                            <div className="flex items-center justify-between text-white mt-1">
-                                
-                                {/* Left Side Controls */}
-                                <div className="flex items-center gap-4 md:gap-5">
-                                    {/* Play / Pause Toggle Circle */}
-                                    <button 
-                                        onClick={togglePlay}
-                                        className="w-10 h-10 rounded-full border border-white/20 hover:border-white hover:bg-white/10 flex items-center justify-center transition-all cursor-pointer shadow-lg shrink-0"
-                                    >
-                                        {isPlaying ? (
-                                            <Pause size={18} fill="currentColor" className="text-white" />
-                                        ) : (
-                                            <Play size={18} fill="currentColor" className="text-white ml-0.5" />
-                                        )}
-                                    </button>
-
-                                    {/* Rewind 10s */}
-                                    <button 
-                                        onClick={() => seekOffset(-10)} 
-                                        className="hover:text-primary transition-colors cursor-pointer p-1 flex items-center justify-center relative select-none shrink-0"
-                                        title="Lùi 10s"
-                                    >
-                                        <RotateCcw size={18} />
-                                        <span className="absolute text-[8px] font-bold mt-[3px]">10</span>
-                                    </button>
-
-                                    {/* Forward 10s */}
-                                    <button 
-                                        onClick={() => seekOffset(10)} 
-                                        className="hover:text-primary transition-colors cursor-pointer p-1 flex items-center justify-center relative select-none shrink-0"
-                                        title="Tiến 10s"
-                                    >
-                                        <RotateCw size={18} />
-                                        <span className="absolute text-[8px] font-bold mt-[3px]">10</span>
-                                    </button>
-
-                                    {/* Volume control */}
-                                    <div className="flex items-center gap-2 group/volume shrink-0">
-                                        <button 
-                                            onClick={toggleMute} 
-                                            className="hover:text-primary transition-colors cursor-pointer p-1"
-                                            title={isMuted ? "Mở âm thanh" : "Tắt âm thanh"}
-                                        >
-                                            {isMuted || volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
-                                        </button>
-                                        <input 
-                                            type="range" 
-                                            min="0" 
-                                            max="1" 
-                                            step="0.05"
-                                            value={isMuted ? 0 : volume} 
-                                            onChange={handleVolumeChange} 
-                                            className="w-0 group-hover/volume:w-16 md:group-hover/volume:w-20 overflow-hidden transition-all duration-300 h-1 rounded-lg appearance-none cursor-pointer focus:outline-none accent-white bg-white/30"
-                                        />
-                                    </div>
+                            {/* Prevent clicks on the control bar itself from toggling play/pause */}
+                            <div className="w-full flex flex-col justify-end cursor-default controls-bar-container" onClick={(e) => e.stopPropagation()}>
+                                {/* Seekbar Time indicators (displayed ABOVE seekbar) */}
+                                <div className="flex justify-between items-center text-xs font-medium text-white/95 px-1 mb-2">
+                                    <span>{formatTime(currentTime)}</span>
+                                    <span>{formatTime(duration)}</span>
                                 </div>
 
-                                {/* Right Side Controls */}
-                                <div className="flex items-center gap-4 md:gap-5">
+                                {/* Full-width Timeline / Seekbar */}
+                                <div className="relative w-full group/timeline mb-4 flex items-center">
+                                    <input 
+                                        type="range" 
+                                        min="0" 
+                                        max={duration || 100} 
+                                        value={currentTime} 
+                                        onChange={handleSeek}
+                                        className="w-full h-2 sm:h-1.5 py-2 sm:py-0 rounded-lg appearance-none cursor-pointer focus:outline-none accent-primary"
+                                        style={{
+                                            background: `linear-gradient(to right, #ff5451 0%, #ff5451 ${(currentTime / (duration || 1)) * 100}%, rgba(255, 255, 255, 0.15) ${(currentTime / (duration || 1)) * 100}%, rgba(255, 255, 255, 0.15) 100%)`
+                                        }}
+                                    />
+                                </div>
+
+                                {/* Row: Control Buttons */}
+                                <div className="flex items-center justify-between text-white mt-1">
                                     
-                                    {/* Audio Tracks / Microphone */}
-                                    <div className="relative">
+                                    {/* Left Side Controls */}
+                                    <div className="flex items-center gap-2 sm:gap-4 md:gap-5">
+                                        {/* Play / Pause Toggle Circle */}
                                         <button 
-                                            onClick={() => setShowAudioTooltip(!showAudioTooltip)} 
-                                            className="hover:text-primary transition-colors cursor-pointer p-1"
-                                            title="Cài đặt âm thanh"
+                                            onClick={togglePlay}
+                                            className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-white/20 hover:border-white hover:bg-white/10 flex items-center justify-center transition-all cursor-pointer shadow-lg shrink-0"
                                         >
-                                            <Mic size={18} />
-                                        </button>
-                                        {showAudioTooltip && (
-                                            <div className="absolute bottom-10 right-0 w-32 glass-panel rounded-xl border border-white/10 shadow-2xl p-2 z-50 text-[10px] text-center font-bold text-primary animate-fade-in-scale">
-                                                Đường tiếng: Gốc
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Next Episode (Skipping) */}
-                                    <button 
-                                        onClick={onNextEpisode} 
-                                        disabled={!hasNextEpisode}
-                                        className="hover:text-primary transition-colors disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer p-1"
-                                        title={hasNextEpisode ? "Tập tiếp theo" : "Hết tập"}
-                                    >
-                                        <SkipForward size={18} fill="currentColor" />
-                                    </button>
-
-                                    {/* Picture-in-Picture */}
-                                    <button 
-                                        onClick={togglePiP} 
-                                        className="hover:text-primary transition-colors cursor-pointer p-1"
-                                        title="Chế độ thu nhỏ (PiP)"
-                                    >
-                                        <PictureInPicture2 size={18} />
-                                    </button>
-
-                                    {/* Quality Selection / Gear */}
-                                    <div className="relative">
-                                        <button 
-                                            onClick={() => setShowQualityMenu(!showQualityMenu)} 
-                                            className="hover:text-primary transition-colors cursor-pointer p-1 flex items-center relative"
-                                            title="Chất lượng phát"
-                                        >
-                                            <Settings size={18} />
-                                            {qualities.length > 0 && (
-                                                <span className="absolute -top-1.5 -right-2 bg-primary text-[7px] text-white font-bold px-1 py-0.5 rounded-full uppercase scale-75 select-none font-sans">
-                                                    {currentQuality === -1 ? 'Auto' : `${qualities[currentQuality]?.height}p`}
-                                                </span>
+                                            {isPlaying ? (
+                                                <Pause className="w-[14px] h-[14px] sm:w-[18px] sm:h-[18px] text-white" fill="currentColor" />
+                                            ) : (
+                                                <Play className="w-[14px] h-[14px] sm:w-[18px] sm:h-[18px] text-white ml-0.5" fill="currentColor" />
                                             )}
                                         </button>
 
-                                        {showQualityMenu && qualities.length > 0 && (
-                                            <div className="absolute bottom-10 right-0 w-36 glass-panel rounded-xl border border-white/10 shadow-2xl p-2 z-50 flex flex-col gap-1 text-[11px] font-semibold animate-fade-in-scale">
-                                                <div className="text-[9px] uppercase tracking-wider text-on-surface-variant/50 font-bold px-2.5 py-1 border-b border-white/5 select-none">Chất lượng</div>
-                                                <button 
-                                                    onClick={() => selectQuality(-1)}
-                                                    className={`w-full text-left py-1.5 px-2.5 rounded-lg transition-colors cursor-pointer ${currentQuality === -1 ? 'bg-primary/20 text-primary font-bold' : 'hover:bg-white/5'}`}
-                                                >
-                                                    Tự động (Auto)
-                                                </button>
-                                                {qualities.map((level, idx) => (
-                                                    <button 
-                                                        key={idx}
-                                                        onClick={() => selectQuality(idx)}
-                                                        className={`w-full text-left py-1.5 px-2.5 rounded-lg transition-colors cursor-pointer ${currentQuality === idx ? 'bg-primary/20 text-primary font-bold' : 'hover:bg-white/5'}`}
-                                                    >
-                                                        {level.height}p
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
+                                        {/* Rewind 10s */}
+                                        <button 
+                                            onClick={() => seekOffset(-10)} 
+                                            className="hover:text-primary transition-colors cursor-pointer p-1 flex items-center justify-center relative select-none shrink-0"
+                                            title="Lùi 10s"
+                                        >
+                                            <RotateCcw className="w-[16px] h-[16px] sm:w-[18px] sm:h-[18px]" />
+                                            <span className="absolute text-[7px] sm:text-[8px] font-bold mt-[2px] sm:mt-[3px]">10</span>
+                                        </button>
+
+                                        {/* Forward 10s */}
+                                        <button 
+                                            onClick={() => seekOffset(10)} 
+                                            className="hover:text-primary transition-colors cursor-pointer p-1 flex items-center justify-center relative select-none shrink-0"
+                                            title="Tiến 10s"
+                                        >
+                                            <RotateCw className="w-[16px] h-[16px] sm:w-[18px] sm:h-[18px]" />
+                                            <span className="absolute text-[7px] sm:text-[8px] font-bold mt-[2px] sm:mt-[3px]">10</span>
+                                        </button>
+
+                                        {/* Volume control */}
+                                        <div className="flex items-center gap-1 sm:gap-2 group/volume shrink-0">
+                                            <button 
+                                                onClick={toggleMute} 
+                                                className="hover:text-primary transition-colors cursor-pointer p-1"
+                                                title={isMuted ? "Mở âm thanh" : "Tắt âm thanh"}
+                                            >
+                                                {isMuted || volume === 0 ? <VolumeX className="w-[16px] h-[16px] sm:w-[18px] sm:h-[18px]" /> : <Volume2 className="w-[16px] h-[16px] sm:w-[18px] sm:h-[18px]" />}
+                                            </button>
+                                            <input 
+                                                type="range" 
+                                                min="0" 
+                                                max="1" 
+                                                step="0.05"
+                                                value={isMuted ? 0 : volume} 
+                                                onChange={handleVolumeChange} 
+                                                className="w-0 group-hover/volume:w-16 md:group-hover/volume:w-20 overflow-hidden transition-all duration-300 h-1 rounded-lg appearance-none cursor-pointer focus:outline-none accent-white bg-white/30"
+                                            />
+                                        </div>
                                     </div>
 
-                                    {/* Fullscreen Button */}
-                                    <button 
-                                        onClick={toggleFullscreen} 
-                                        className="hover:text-primary transition-colors cursor-pointer p-1"
-                                        title={isFullscreen ? "Thoát toàn màn hình" : "Toàn màn hình"}
-                                    >
-                                        {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
-                                    </button>
+                                    {/* Right Side Controls */}
+                                    <div className="flex items-center gap-2 sm:gap-4 md:gap-5">
+                                        
+                                        {/* Audio Tracks / Microphone */}
+                                        <div className="hidden sm:block relative">
+                                            <button 
+                                                onClick={() => setShowAudioTooltip(!showAudioTooltip)} 
+                                                className="hover:text-primary transition-colors cursor-pointer p-1"
+                                                title="Cài đặt âm thanh"
+                                            >
+                                                <Mic className="w-[18px] h-[18px]" />
+                                            </button>
+                                            {showAudioTooltip && (
+                                                <div className="absolute bottom-10 right-0 w-32 glass-panel rounded-xl border border-white/10 shadow-2xl p-2 z-50 text-[10px] text-center font-bold text-primary animate-fade-in-scale">
+                                                    Đường tiếng: Gốc
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Next Episode (Skipping) */}
+                                        <button 
+                                            onClick={onNextEpisode} 
+                                            disabled={!hasNextEpisode}
+                                            className="hover:text-primary transition-colors disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer p-1"
+                                            title={hasNextEpisode ? "Tập tiếp theo" : "Hết tập"}
+                                        >
+                                            <SkipForward className="w-[16px] h-[16px] sm:w-[18px] sm:h-[18px]" fill="currentColor" />
+                                        </button>
+
+                                        {/* Picture-in-Picture */}
+                                        <button 
+                                            onClick={togglePiP} 
+                                            className="hidden sm:block hover:text-primary transition-colors cursor-pointer p-1"
+                                            title="Chế độ thu nhỏ (PiP)"
+                                        >
+                                            <PictureInPicture2 className="w-[18px] h-[18px]" />
+                                        </button>
+
+                                        {/* Quality Selection / Gear */}
+                                        <div className="relative">
+                                            <button 
+                                                onClick={() => setShowQualityMenu(!showQualityMenu)} 
+                                                className="hover:text-primary transition-colors cursor-pointer p-1 flex items-center relative"
+                                                title="Chất lượng phát"
+                                            >
+                                                <Settings className="w-[16px] h-[16px] sm:w-[18px] sm:h-[18px]" />
+                                                {qualities.length > 0 && (
+                                                    <span className="absolute -top-1.5 -right-2 bg-primary text-[6px] sm:text-[7px] text-white font-bold px-1 py-0.5 rounded-full uppercase scale-75 select-none font-sans">
+                                                        {currentQuality === -1 ? 'Auto' : `${qualities[currentQuality]?.height}p`}
+                                                    </span>
+                                                )}
+                                            </button>
+
+                                            {showQualityMenu && qualities.length > 0 && (
+                                                <div className="absolute bottom-10 right-0 w-36 glass-panel rounded-xl border border-white/10 shadow-2xl p-2 z-50 flex flex-col gap-1 text-[11px] font-semibold animate-fade-in-scale">
+                                                    <div className="text-[9px] uppercase tracking-wider text-on-surface-variant/50 font-bold px-2.5 py-1 border-b border-white/5 select-none">Chất lượng</div>
+                                                    <button 
+                                                        onClick={() => selectQuality(-1)}
+                                                        className={`w-full text-left py-1.5 px-2.5 rounded-lg transition-colors cursor-pointer ${currentQuality === -1 ? 'bg-primary/20 text-primary font-bold' : 'hover:bg-white/5'}`}
+                                                    >
+                                                        Tự động (Auto)
+                                                    </button>
+                                                    {qualities.map((level, idx) => (
+                                                        <button 
+                                                            key={idx}
+                                                            onClick={() => selectQuality(idx)}
+                                                            className={`w-full text-left py-1.5 px-2.5 rounded-lg transition-colors cursor-pointer ${currentQuality === idx ? 'bg-primary/20 text-primary font-bold' : 'hover:bg-white/5'}`}
+                                                        >
+                                                            {level.height}p
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Fullscreen Button */}
+                                        <button 
+                                            onClick={toggleFullscreen} 
+                                            className="hover:text-primary transition-colors cursor-pointer p-1"
+                                            title={isFullscreen ? "Thoát toàn màn hình" : "Toàn màn hình"}
+                                        >
+                                            {isFullscreen ? <Minimize className="w-[16px] h-[16px] sm:w-[18px] sm:h-[18px]" /> : <Maximize className="w-[16px] h-[16px] sm:w-[18px] sm:h-[18px]" />}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
                     </>
                 )}
 
